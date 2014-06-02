@@ -4,6 +4,7 @@ Open-source, copyright free, non-commercial.  Make it better!  Images files are 
 
 	TO-DO LIST:
 	
+	* warn user and fail gracefully if RT changes its code
 	* scrape any movie ratings existing in RT user account and import
 	* allow users to compare similarity with each other
 	* stats/graphs about similarity score 
@@ -127,7 +128,7 @@ storage.get('ratings', function(items) {
 function insert_styles() {
 	var txt = '';
 	txt +=  '<style type="text/css">\n';
-	txt += '#widget_holder 						{ position:fixed; right: 0; top:10px; background-color: #FFFFFF; border-top: 2px solid #FF0000; border-bottom: 2px solid #FF0000; border-left: 2px solid #FF0000;'; 
+	txt += '#widget_holder 						{ position:fixed; right: 0; top:75px; background-color: #FFFFFF; border-top: 2px solid #FF0000; border-bottom: 2px solid #FF0000; border-left: 2px solid #FF0000;'; 
 	txt += 												'padding-bottom:5px; border-radius:4px 0px 0px 4px; z-index:1; -webkit-box-shadow:6px 6px 8px rgba(0, 0, 0, 0.47); }\n';
 	txt += '#widgets_col1 						{ float:left; width:186px; }\n';
 	txt += '#widgets_col2 						{ float:left; width:0px; height:0px; background-color:rgb(241, 241, 241); overflow-y:auto; overflow-x:hidden; ';
@@ -1055,24 +1056,24 @@ function update_score_widget() {
 }
 
 function update_meter_widget() {
-	var count = 0;
-	var freshTotal = 0;
-	var freshCount = 0;
-	var sortTotal = 0;
-	var ratingsTotal = 0;
-	var avgFreshness = 0;
-	var avgRating = 0;
+	var count = 0; // all critics - count
+	var freshTotal = 0; // critics who rated this fresh - total of sort scores
+	var freshCount = 0; // critics who rated this fresh - count
+	var sortTotal = 0; // all critics - total of sort scores
+	var ratingsTotal = 0; // all critics - total of ratings
+	var avgFreshness = 0; // weighted % critics who rated this fresh 
+	var avgRating = 0; // all critics - average rating
 	// calculate smart freshness
 	// cycle through critics
-	for(x=2,xl=criticsArray.length; x<xl; x++) {
+	for(x=0,xl=criticsArray.length; x<xl; x++) {
 		// if film was rated
 		if(criticsArray[x][1]>0 && criticsArray[x][1]!='') {
 			// critic count as a fraction based on their sort score
-			var sortScore = criticsArray[x][5]*100;
+			var sortScore = criticsArray[x][5];
 			if(sortScore>0) {
-				sortScore = Math.pow(sortScore,4); // very heavily weighting the most similar critics
+				sortScore = Math.pow(sortScore,10); // very heavily weighting the most similar critics
 			} else {	
-				sortScore = Math.pow(sortScore,4) * -1; 
+				sortScore = Math.pow(sortScore,10) * -1; 
 			}
 			var rating = parseFloat(criticsArray[x][1]);
 			// rated fresh?
@@ -1116,31 +1117,30 @@ function update_distribution_widget() {
 		starColumns[x]=0;
 	}
 	// cycle through critics
-	for(x=2,xl=criticsArray.length; x<xl; x++) {
+//	var debug = '';
+	for(x=0,xl=criticsArray.length; x<xl; x++) {
 		// if film was rated
 		if(criticsArray[x][1]>0 && criticsArray[x][1]!='') {
 			// critic counts as a fraction based on their sort score
 			var sortScore = criticsArray[x][5]*100;
 			if(sortScore>0) {
-				sortScore = Math.pow(sortScore,4); // very heavily weighting the most similar critics
+				sortScore = Math.pow(sortScore,10); // very heavily weighting the most similar critics
 			} else {	
-				sortScore = Math.pow(sortScore,4) * -1; 
+				sortScore = Math.pow(sortScore,10) * -1; 
 			}
 			var rating = parseFloat(criticsArray[x][1]);
 			rating = parseInt(Math.round(rating-1));
 			starColumns[rating] += sortScore;
 		}
 	}
+//	console.debug(debug);
 	var colMax = Math.max.apply(Math, starColumns);
-	var debug = '';
 	for(x=0,xl=starColumns.length; x<xl; x++) {
-//		debug += starColumns[x] + ',' + x + '\n';
 		starColumns[x] = starColumns[x]/colMax;
 		starColumns[x] = Math.round(starColumns[x]*35);
 		$('#dist_s' + x).css('height',starColumns[x]);
 		$('#dist_s' + x).css('margin-top',35-starColumns[x]);
 	}
-	console.debug(debug);
 }
 
 function save_rating(star) {
