@@ -12,7 +12,7 @@ Open-source, copyright free, non-commercial.  Make it better!  Images files are 
 
 */
 
-// script-wide vars
+// Set Global Variables
 var storage = chrome.storage.local;
 var pageFilmIndex = 0;
 var scrapeMovie = true;
@@ -23,14 +23,20 @@ var ratingsArray = new Array();
 var criticsArray = new Array();
 var pagesToScrape = 20;
 var scrapeCounter = 1;
-var dataVersion = 4; // current version of data table:  when storage methods change, this allows some old versions to be detected and fixed
 var totalUserRatings = 0;
-// these are IDs that are subject to change if RT updates their code
+
+// current version of data table:  
+// when storage methods change, this allows some old versions to be detected and fixed
+var dataVersion = 4; 
+
+// Rotten Tomatoes' element IDs these are IDs that are subject to change if RT
+// updates their code
 var loginRT = '#header-logout-link'; 
-var starWidgetRT= '#movie_rating_widget .stars';
+var starWidgetRT = '#movie_rating_widget .stars';
 var allCriticsFreshnessScoreRT = '#all-critics-meter';
-
-
+var scorePanel = '#scorePanel';
+var reviewsPageCount = '.pageInfo';
+var reviewsList = '#reviews';
 
 
 
@@ -47,15 +53,14 @@ var allCriticsFreshnessScoreRT = '#all-critics-meter';
 // everything has to happen inside of the load data callback function 
 // because it's asynchronous with the rest of the code
 storage.get('ratings', function(items) {
-	insert_styles();
 	insert_widget_holder();
 	create_ratings_table(items.ratings);
 	insert_score_widget();
 	add_score_widget_events();
-	if($('.meter_box').length>0) { // if this page contains a film 
+	if($(scorePanel).length>0) { // if this page contains a film 
 		pageFilmName = $('.movie_title span')[0].innerHTML;
 		pageFilmPath = location.pathname;
-		pageFilmReleaseDate = $('.movie_info .right_col span span').eq(0).attr('content');
+		pageFilmReleaseDate = $('.movie_info .dl-horizontal dd').eq(4).attr('content');
 		add_pageFilm();
 		fix_old_version();
 		insert_meter_widget();
@@ -74,7 +79,7 @@ storage.get('ratings', function(items) {
 				dataType: 'html',
 				success: function(response) {
 					var $el = $('<div>').html(response);
-					$el = $el.find('.scroller').eq(0).children().first();
+					$el = $el.find(reviewsPageCount).eq(0);
 					var txt = $el.html();
 					if(!txt) txt = 'of 0';
 					pagesToScrape = parseInt(txt.substring(txt.indexOf('of ')+3, txt.length));
@@ -125,99 +130,6 @@ storage.get('ratings', function(items) {
 //      FUNCTIONS      //
 /////////////////////////
 
-function insert_styles() {
-	var txt = '';
-	txt +=  '<style type="text/css">\n';
-	txt += '#widget_holder 						{ position:fixed; right: 0; top:75px; background-color: #FFFFFF; border-top: 2px solid #FF0000; border-bottom: 2px solid #FF0000; border-left: 2px solid #FF0000;'; 
-	txt += 												'padding-bottom:5px; border-radius:4px 0px 0px 4px; z-index:1; -webkit-box-shadow:6px 6px 8px rgba(0, 0, 0, 0.47); }\n';
-	txt += '#widgets_col1 						{ float:left; width:186px; }\n';
-	txt += '#widgets_col2 						{ float:left; width:0px; height:0px; background-color:rgb(241, 241, 241); overflow-y:auto; overflow-x:hidden; ';
-	txt += 												'-webkit-transition-property:width; -webkit-transition-duration:.3s; -webkit-transition-timing-function:ease; }\n';
-	txt += '#widgets_col2 div 					{ padding:5px; }\n';
-	txt += '.rated_movie						{ white-space:nowrap; }\n';
-	txt += '#import_raw							{ position:relative; opacity:0; z-index:1; }\n';
-	txt += '#fake_import						{ position:relative; top:-26px; }\n';
-	txt += '#widgets_footer						{ clear:both; margin:0px 0px 0px 10px; font-size: 10px; padding-top:5px; border-top: 1px solid rgb(214, 214, 214); }';
-	txt += '#widgets_footer a 					{ font-weight:bold; margin-right:20px; }\n';
-	txt += '#swe_erase 							{ float:right; color: rgb(228, 0, 0); margin-right:10px !important; }\n';
-	txt += '.exporter							{ -webkit-box-align: center; text-align: center; color: buttontext; padding: 2px 6px 3px; border: 2px outset buttonface; ';
-	txt += 												'background-color: buttonface; box-sizing: border-box; -webkit-appearance: push-button; white-space: pre; -webkit-rtl-ordering: logical; ';
-	txt += 												'-webkit-user-select: text; font: -webkit-small-control; display: inline-block; -webkit-writing-mode: horizontal-tb; }\n';
-	txt += '.exporter:hover		 				{ text-decoration:none; }\n';
-	
-	txt += '.hover_tip_L 						{ opacity:.9; background:transparent url(' + chrome.extension.getURL('images/tipRight.png') + ') no-repeat 123px 8px;'; 
-	txt += 												'margin-right:4px; position:absolute; padding-right:5px; z-index:65531; display:none; left:-130px; }\n';
-	txt += '.hover_tip_L > span 				{ background-color:#333; color:white; display:block; max-width:115px; padding:2px 4px; border-radius:4px; -webkit-border-radius:4px; }\n';
-
-	txt += '#meter_widget						{ position:relative; float:left; }\n';
-	txt += '#meter_title						{ display:block; margin:0px 0px 0px 10px; padding-top: 6px; text-decoration:none; cursor:text; }\n';
-	txt += '#meter_title div					{ display:inline; text-transform: uppercase; font-weight: bold; font-size:10px; color: #556F1E; }\n';
-	txt += '#meter_title .hover_tip_L 			{ top: -2px; }\n';
-	txt += '#meter_title:after 					{ content: url(' + chrome.extension.getURL('images/help.png') + '); padding-left: 2px; vertical-align: middle; }\n';
-	txt += '#meter_title:hover p				{ display:block; }\n';
-	txt += '#adjusted_tomato					{ float:left; margin:0px 0px 6px 6px; width:50px; height:50px; background:url(' + chrome.extension.getURL('images/meter.png') + ') left top no-repeat; }\n';
-	txt += '#adjusted_score						{ float:left; margin-top:15px; margin-left:3px; font-size: 48px; color:#506A16; font-family: Arial, Helvetica, sans-serif; font-weight:bold; }\n';
-	txt += '#adjusted_percent					{ float:left; margin-top:6px; font-size: 24px; color:#506A16; font-family: Arial, Helvetica, sans-serif; font-weight:bold; }\n';
-
-	txt += '#distribution_widget				{ position:relative; float:left; }\n';
-	txt += '#distribution_title					{ display:block; width:176px; float:left; margin:0px 0px 0px 10px; padding-top:6px; border-top:1px solid rgb(214, 214, 214); text-decoration:none; cursor:text; }\n';
-	txt += '#distribution_title div				{ display:inline; text-transform: uppercase; font-weight: bold; font-size:10px; color: #556F1E; }\n';
-	txt += '#distribution_title .hover_tip_L 	{ top: -2px; }\n';
-	txt += '#distribution_title:after 			{ content: url(' + chrome.extension.getURL('images/help.png') + '); padding-left: 2px; vertical-align: middle; }\n';
-	txt += '#distribution_title:hover p			{ display:block; }\n';
-	txt += '#dist_holder						{ display:block; position:relative; width:170px; height:35px; margin-top:24px; margin-left:10px; margin-bottom:5px; background:url(' + chrome.extension.getURL('images/distribution_bg.png') + ') left top no-repeat;}\n';
-	txt += '#dist_holder div					{ display:block; float:left; width:29px; height:0px; margin-right:5px; margin-top:0px; background-color:rgba(110, 168, 64, 0.64); }\n';
-	
-	txt += '#rating_widget						{ display:none; float:left; position:relative; margin-left:10px; zoom:1; overflow:hidden; }\n';
-	txt += '#rating_title						{ display:block; width:176px; float:left; margin:0px 0px 0px 10px; padding-top:6px; border-top:1px solid rgb(214, 214, 214); text-decoration:none; cursor:text; }\n';
-	txt += '#rating_title div					{ display:inline; text-transform: uppercase; font-weight: bold; font-size:10px; color: #556F1E; }\n';
-	txt += '#rating_title .hover_tip_L 			{ top: 152px; }\n';
-	txt += '#rating_title:after 				{ content: url(' + chrome.extension.getURL('images/help.png') + '); padding-left: 2px; vertical-align: middle; }\n';
-	txt += '#rating_title:hover p				{ display:block; }\n';
-	txt += '#updating 							{ position:relative; float: left; margin:0px 0px 10px 10px; overflow:hidden; color:#000; display:block; }\n';
-
-	txt += '#rating_widget ul 					{ width:176px; margin:0; padding:0; }\n';
-	txt += '#rating_widget li 					{ display:inline; list-style:none; }\n';
-	txt += '#rating_widget li a, #rating_widget b { background:url(' + chrome.extension.getURL('images/star_rate.png') + ') left top repeat-x; }\n';
-	txt += '#rating_widget li a 				{ float:right; margin:0 80px 0 -160px; width:96px; height:16px; background-position:left 16px; color:#000; text-decoration:none; }\n';
-	txt += '#rating_widget li a:hover			{ background-position:left -32px; }\n';
-	txt += '#rating_widget b 					{ position:absolute; z-index:-1; width:96px; height:16px; background-position:left -16px; }\n';
-	txt += '#rating_widget div b 				{ left:0px; bottom:0px; background-position:left top; }\n';
-	txt += '#rating_widget li a span 			{ position:absolute; left:-300px; }\n';
-	txt += '#rating_widget li a:hover span 		{ left:106px; width:100%; }\n';
-	txt += 'li a#star_a_0	 					{ background-position:left -48px; }\n';
-	txt += 'li a#star_a_0:hover					{ background-position:left -64px; }\n';
-
-	txt += '#score_widget						{ height:0px; float:left; overflow:hidden; margin-top:10px; -webkit-transition-property:height; -webkit-transition-duration:.3s; -webkit-transition-timing-function:ease;}\n';
-	txt += '#score_title						{ display:block; float:left; margin:0px 0px 0px 10px; padding-top:6px; border-top:1px solid rgb(214, 214, 214); text-decoration:none; cursor:text; }\n';
-	txt += '#score_title div					{ display:inline; text-transform: uppercase; font-weight: bold; font-size:10px; color: #556F1E; }\n';
-	txt += '#score_title .hover_tip_L 			{ top: 128px; }\n';
-	txt += '#score_title:after 					{ content: url(' + chrome.extension.getURL('images/help.png') + '); padding-left: 2px; vertical-align: middle; }\n';
-	txt += '#score_title:hover p				{ display:block; }\n';
-	txt += '#score_filter						{ float:left; text-transform: uppercase; font-weight: bold; font-size:10px; color:#3c7ee2; padding:7px 21px 0px 21px; border-top:1px solid rgb(214, 214, 214); ';
-	txt += 												'text-decoration:none; }\n';
-
-	txt += '#critic_rows 						{ height: 100px; overflow:scroll; float:left; }\n';
-	txt += '#critic_rows div.row_wrapper		{ float:left; }\n';
-	txt += '#critic_rows a						{ display:block; float:left; overflow:hidden; width:91px; white-space:nowrap; margin-left:10px; margin-bottom:2px; }\n';
-	txt += '#critic_rows div.tiny_meter			{ float:left; padding:0px; background:url(' + chrome.extension.getURL('images/tiny_meter.png') + ') no-repeat top right; width:12px;';
-	txt += 												'margin-left:5px; height:12px; overflow:hidden; }\n';
-	txt += '#critic_rows div.fresh	 			{ background-position:left -12px; }\n';
-	txt += '#critic_rows div.rotten 			{ background-position:left -24px; }\n';
-	txt += '#critic_rows div.unrated 			{ display:none; }\n';
-	txt += '#critic_rows div.med 				{ opacity:.8; }\n';
-	txt += '#critic_rows div.low 				{ opacity:.6; }\n';
-	txt += '#critic_rows div.non 				{ opacity:.4; }\n';
-	txt += '#critic_rows div.shown	 			{ display:block; }\n';
-	txt += '#critic_rows div.score				{ float:left; overflow:hidden; margin-left:2px; width:32px; text-align:right; font-weight:bold; }\n';
-	txt += '#critic_rows div.count				{ float:left; width:22px; overflow:hidden; margin-right:-45px; margin-left:5px; font-size:9px }\n';
-	txt += '#critic_rows div.noratings			{ margin-left:10px; margin-bottom:2px; font-weight:normal; width:155px; text-align:left; }\n';
-
-	txt += '</style>';
-	txt += '<div id="emptyPlaceholder2"></div>';
-	$('#emptyPlaceholder').after(txt);
-}
-
 function insert_widget_holder() {
 	var txt = '';
 	txt += '<div id="widget_holder">';
@@ -228,7 +140,7 @@ function insert_widget_holder() {
 			txt += '<a href="#" id="swe_erase">erase</a>';
 		txt += '</div>';
 	txt += '</div>';
-	$('#emptyPlaceholder2').after(txt);	
+	$('body').prepend(txt);	
 }
 
 function create_ratings_table(ratingsData) {
@@ -302,8 +214,10 @@ function insert_score_widget() {
 	txt += '<div id="score_widget">';
 		txt += '<a href="#" id="score_title" onclick="return false;">';
 			txt += '<div>Critics like you</div>';
-			txt += '<p class="hover_tip_L"><span>Tomato icon shows this critic\'s ratings for this movie. ';
-			txt += 'The % is this critic\'s similarity to you based on the (number) of movies you have both rated. More shows critics that haven\'t rated this movie.</span></p>';
+			txt += '<p class="hover_tip_L">';
+			txt += '<span>Tomato icon shows this critic\'s ratings for this movie. ';
+			txt += 'The % is this critic\'s similarity to you based on the (number) of movies you have both rated. ';
+			txt += 'More shows critics that haven\'t rated this movie.</span></p>';
 		txt += '</a>';
 		txt += '<a href="#" id="score_filter"><span>more</span></a>';
 		txt += '<div id="critic_rows">';
@@ -389,7 +303,9 @@ function insert_meter_widget() {
 	txt += '<div id="meter_widget">';
 		txt += '<a href="#" id="meter_title" onclick="return false;">';
 			txt += '<div>Smarter Tomatometer</div>';
-			txt += '<p class="hover_tip_L"><span>Critics who agree with you are given high weighting, while critics who disagree with you are given low weighting.</span></p>';
+			txt += '<p class="hover_tip_L">';
+			txt += '<span>Critics who agree with you are given high weighting, ';
+			txt += 'while critics who disagree with you are given low weighting.</span></p>';
 		txt += '</a>';
 		txt += '<div id="adjusted_tomato"></div>';
 		txt += '<div id="adjusted_score">?</div>';
@@ -404,7 +320,9 @@ function insert_distribution_widget() {
 	txt += '<div id="distribution_widget">';
 		txt += '<a href="#" id="distribution_title" onclick="return false;">';
 			txt += '<div>Distribution of Ratings</div>';
-			txt += '<p class="hover_tip_L"><span>Count of critics that gave each number of stars, weighted by each critic\'s similarity to you.</span></p>';
+			txt += '<p class="hover_tip_L">';
+			txt += '<span>Count of critics that gave each number of stars, weighted by each critic\'s ';
+			txt += 'similarity to you.</span></p>';
 		txt += '</a>';
 		txt += '<div id="dist_holder">';
 			txt += '<div id="dist_s0"></div>';
@@ -421,7 +339,9 @@ function insert_rating_widget() {
 	var txt = '';
 	txt += '<a href="#" id="rating_title" onclick="return false;">';
 		txt += '<div>Your Rating</div>';
-		txt += '<p class="hover_tip_L"><span>Rate more movies to improve the accuracy of the tomatometer and your list of similar critics.</span></p>';
+		txt += '<p class="hover_tip_L">';
+		txt += '<span>Rate more movies to improve the accuracy of the tomatometer ';
+		txt += 'and your list of similar critics.</span></p>';
 	txt += '</a>';
 	txt += '<div id="updating">gathering ratings...</div>';
 	txt += '<div id="rating_widget">';
@@ -581,7 +501,8 @@ function insert_extras() {
 				txt += '<input type="button" id="fake_import" name="fake_import" value="Import Raw File" />';
 			txt += '</p>';
 			txt += '<p>';
-				txt += '<span>Export a comparison of every critic with every other critic, given the movies you\'ve rated so far.  The report will contain all critic-pairs who have rated at least one movie in common.'; 
+				txt += '<span>Export a comparison of every critic with every other critic, given the movies you\'ve rated so far.  ';
+				txt += 'The report will contain all critic-pairs who have rated at least one movie in common.'; 
 				txt += ' WARNING:  This may generate a very large file and may take one or more minutes to complete.</span>';
 			txt += '</p>';
 			txt += '<p>';
@@ -793,14 +714,15 @@ function scrape_rt_ratings() {
 				dataType: 'html',			
 				success: function(response) {
 					var $el = $('<div>').html(response);
-					$el = $el.find('#reviews').find('.media_block_content');
+					$el = $el.find(reviewsList).find('tr');
 					// cycle through all critics on page
 					for(var y=0, yl=$el.length; y<yl; y++) {
-						var criticName = $el.eq(y).find('.criticinfo').find('a').html();
+						var criticName = $el.eq(y).find('a').eq(0).html();
 						if(!criticName) { criticName = '(unknown)'; }
-						var criticPath = $el.eq(y).find('.criticinfo').find('a').attr('href');
-						var reviewPath = $el.eq(y).find('.reviewsnippet').find('p').eq(1).find('a').attr('href');
-						var ratingEL = $el.eq(y).find('.tmeterfield').find('div')[0];
+						var criticPath = $el.eq(y).find('a').eq(0).attr('href');
+						var reviewPath = $el.eq(y).find('a').eq(1).attr('href');
+						var ratingEL = $el.eq(y).find('td').eq(3).find('div');
+						console.log(y);
 						var criticRating = sanitize_rating(ratingEL);
 						var newCritic = true;
 						// cycle through critics in ratings table
@@ -866,7 +788,7 @@ function scrape_rt_ratings() {
 					}
 					var txt = 'step ' + scrapeCounter + ' of ' + pagesToScrape + '...';
 					scrapeCounter++;
-					$('#updating').html(txt);						
+					$('#updating').html(txt);					
 				}
 			})
 		);
@@ -1151,9 +1073,9 @@ function sanitize_rating(el) {
 	// depends on RT maintaining its element ID conventions
 	var txt = '';
 	var rating = 0;
-	if(el.getAttribute('tip')) { 
+	if($(el).attr('tip')) { 
 		// complex ratings
-		txt = el.getAttribute('tip');
+		txt = $(el).attr('tip');
 		txt = txt.substring(txt.indexOf('Score: ')+7,txt.length);
 		var fraction = txt.split('/');
 		if(fraction.length==2) {
@@ -1214,7 +1136,7 @@ function sanitize_rating(el) {
 		// boolean ratings
 		// note that this script interprets a "fresh" rating as "good" rather than "best"
 		// and "rotton" as "bad" rather than "worst"
-		if(el.getAttribute('class').indexOf('fresh') > -1) {
+		if($(el).attr('class').indexOf('fresh') > -1) {
 			rating = 4; 
 		} else {
 			rating = 2;
@@ -1284,7 +1206,8 @@ function update_rated_movies() {
 		var txt = '';
 		for(var i=1,il=ratingsArray.length; i<il; i++) {
 			if(ratingsArray[i][1][0]>0) {
-				txt += '<p class="rated_movie"><span>(' + ratingsArray[i][1][0] + ')&nbsp;</span><a target="_blank" href="'+  ratingsArray[i][0][1] + '">' + ratingsArray[i][0][0] + '</a></p>';	
+				txt += '<p class="rated_movie"><span>(' + ratingsArray[i][1][0] + ')&nbsp;</span>';
+				txt += '<a target="_blank" href="'+  ratingsArray[i][0][1] + '">' + ratingsArray[i][0][0] + '</a></p>';	
 			}
 		}
 		$('#rated_movies').html(txt);
