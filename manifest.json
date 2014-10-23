@@ -1,9 +1,18 @@
 {
-	"name": "Heirloom Rotten Tomatoes",
-	"version": "1.4.0",
 	"manifest_version": 2,	
-	"description": "Enhance Rotten Tomatoes! Find the critic who thinks like you.",
-	"content_scripts": [
+	"name": "Heirloom Rotten Tomatoes",
+	"version": "2.0.0",
+  	"description": "Enhance Rotten Tomatoes! Find the critic who thinks like you.",
+	"icons": { 
+		"48": "icon.png" 
+	},
+	"background": {
+		"scripts": [ 
+			"eventPage.js" 
+		],
+		"persistent": false
+	},
+  	"content_scripts": [
 		{
 			"matches": [ 
 				"http://www.rottentomatoes.com/*", 
@@ -19,12 +28,13 @@
 	"web_accessible_resources": [
 		"images/distribution_bg.png",
 		"images/star_rate.png",
-		"images/meter.png",
+		"images/star_rate_bg.png",
+		"images/heart_sprite.png",
 		"images/tiny_meter.png",
 		"images/tipRight.png"
 	],
-	"icons": { "48": "icon.png" },
 	"permissions": [
 		"storage"
-	]
+	],
+	"content_security_policy": "script-src 'self' https://ssl.google-analytics.com; object-src 'self'"
 }
