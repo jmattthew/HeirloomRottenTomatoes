@@ -846,9 +846,10 @@ function ratingsArray_add_this_movie() {
 function scrape_pages_update_arrays() {
 	var calls = [];
 	for(var page=0; page<totalPages; page++) {
+		var urlPage = page+1;
 		calls.push(
 			$.ajax({
-				url: pageFilmPath + 'reviews/?page=' + page + '&sort=name',
+				url: pageFilmPath + 'reviews/?page=' + urlPage + '&sort=name',
 				cache: false,
 				dataType: 'html',			
 			}).done(function(response) {
@@ -870,8 +871,6 @@ function scrape_pages_update_arrays() {
 						var newCritic = true;
 						for(var j=2, jl=ratingsArray[0].length; j<jl; j++) {
 							if(criticPath == ratingsArray[0][j][1]) {
-								// note that when saving to storage:
-								// the blurb and review path will be discarded
 								ratingsArray[pageFilmIndex][j] = criticRating;
 								newCritic = false;
 							}
