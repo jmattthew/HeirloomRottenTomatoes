@@ -404,7 +404,7 @@ function add_extras_events() {
 		$('#hrt_aboutModal').append($('<div>', { id: 'hrt_aboutModalInner'}));
 		$('#hrt_aboutModalInner').append($('<strong>', { text: 'Thanks for using the Heirloom App!', style: 'text-align:center; padding-bottom:10px;' }));
 		$('#hrt_aboutModalInner').append($('<strong>', { text: 'Information the app collects:' }));
-		$('#hrt_aboutModalInner').append($('<span>', { text: 'This app only saves ratings data to your computer. Your movie ratings and the pages that you visit are 100% private to your computer and never transmitted. The app never accesses nor stores any login info.  It uses a Google Analytics cookie to send anonymous app usage information to the developer.' }));
+		$('#hrt_aboutModalInner').append($('<span>', { text: 'This app only saves ratings data to your computer. Your movie ratings and the pages that you visit are 100% private to your computer and never transmitted. The app never accesses nor stores any login info.  It uses a Google Analytics cookie to send anonymous information to the developer such as app usage and critic ranking.' }));
 		$('#hrt_aboutModalInner').append($('<strong>', { text: 'This is an open-source, fan supported project:' }));
 		$('#hrt_aboutModalInner').append($('<span>', { text: 'Neither this browser app nor it\'s developer are affiliated with or supported by Rotten Tomatoes in any way. To report an issue or make a nice comment, tweet ' }));
 		$('#hrt_aboutModalInner').find('span:last').append($('<a>', { href: 'http://twitter.com/mattthew', target: '_blank', text: '@mattthew' }));
@@ -1126,6 +1126,10 @@ function update_critics_widget() {
 				txt += '<div class="count">(' + critic[4] + ')</div>';
 			txt += '</div>';
 		}
+		// send data to the background/event page for analytics
+		chrome.runtime.sendMessage({data: criticsArray}, function(response) {
+//			console.log(response.tenfour);
+		});
 	}
 	$('#critics_rows').html(txt);
 	// shade rows
