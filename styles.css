@@ -404,34 +404,10 @@ li a#star_a_0:hover {
 	background-color: rgba(0,0,0,0.06);
 }
 
-#critics_rows div.med, #critics_rows div.med a { 
-	color: rgba(0,0,0,0.6);
-}
-
-#critics_rows div.low, #critics_rows div.low a { 
-	color: rgba(0,0,0,0.4);
-}
-
-#critics_rows div.non, #critics_rows div.non a { 
-	color: rgba(0,0,0,0.2);
-}
-
-#critics_rows div.med a.name { 
-	color: rgba(38, 111, 221, 0.6);
-}
-
-#critics_rows div.low a.name { 
-	color: rgba(38, 111, 221, 0.4);
-}
-
-#critics_rows div.non a.name { 
-	color: rgba(38, 111, 221, 0.2);
-}
-
 #critics_rows a.review { 
 	float: left;
 	margin: 2px 0px 5px 10px;
-	width: 342px;
+	width: 312px;
 	height: 32px;
 	font-size: 12px;
 	display: block;
@@ -444,9 +420,24 @@ li a#star_a_0:hover {
 	width: 90px;
 	font-size: 12px;
 	font-weight: bold;
-	color: rgb(38, 111, 221);
 	white-space: nowrap;
 	overflow: hidden;
+}
+
+#critics_rows a.ful { 
+	color: rgba(38, 111, 221, 1.0);
+}
+
+#critics_rows a.med { 
+	color: rgba(38, 111, 221, 0.6);
+}
+
+#critics_rows a.low { 
+	color: rgba(38, 111, 221, 0.4);
+}
+
+#critics_rows a.non { 
+	color: rgba(38, 111, 221, 0.2);
 }
 
 #critics_rows div.score { 

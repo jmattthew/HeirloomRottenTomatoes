@@ -1,8 +1,8 @@
 {
 	"manifest_version": 2,	
 	"name": "Heirloom Rotten Tomatoes",
-	"version": "2.0.2",
-  	"description": "Enhance Rotten Tomatoes! Find the critic who thinks like you.",
+	"version": "2.0.3",
+  	"description": "Enhance Rotten Tomatoes! Find the critics who are most like you.",
 	"icons": { 
 		"48": "icon.png" 
 	},
@@ -21,8 +21,8 @@
 				"styles.css"
 			],
 			"js": [ 
-				"script.js",
-				"jquery-1.11.1.min.js" ]
+				"jquery-1.11.1.min.js",
+				"script.js" ]
 		} 
 	],
 	"web_accessible_resources": [

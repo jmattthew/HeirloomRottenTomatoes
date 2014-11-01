@@ -1,6 +1,6 @@
 /*
 
-Open-source, copyright free, non-commercial.  Make it better!  Images files are the property of Rotten Tomatoes.  
+Open-source, copyright free, non-commercial.  Make it better!  tiny_meter.png file is the property of Rotten Tomatoes.  
 
 	TO-DO LIST:
 	
@@ -44,12 +44,9 @@ var favoritesArray = new Array();
 var pagesScraped = 1;
 var totalPages = 1;
 var totalUserRatings = 0;
+var dataReadyTimer = 0;
 var updatingTimer = 0;
 var starMatchTimer = 0;
-
-// when storage methods change, this variable
-// allows some older versions to be detected and fixed
-var dataVersion = 5; 
 
 // Rotten Tomatoes' element IDs that are subject to change
 // if and when RT updates their code
@@ -61,7 +58,7 @@ var reviewsPageCount = '.pageInfo';
 var reviewsList = '#reviews';
 var audienceBox = '.audience-info';
 var criticsCount = '#criticHeaders';
-
+var annoyingHeader = '.leaderboard_wrapper';
 
 
 
@@ -79,43 +76,53 @@ var criticsCount = '#criticHeaders';
 //                     //
 /////////////////////////
 
-// all the action happens within the storage.get call back
-// because it's asyncronous
-
-storage.get('ratings', function(items) {
-	fix_annoying_header();
-	ratingsArray_create(items.ratings);
-	if($(scorePanel).length>0) { // this is a movie listing
-		insert_critics_widget();
-		insert_rating_widget();
-		show_update_status();
-		find_total_pages();
-		ratingsArray_add_this_movie();
-		// create array of ajax calls to be made
-		var concurrentCalls = scrape_pages_update_arrays();
-		// concurrently execute the calls 
-		$.when.apply(null, concurrentCalls).done(function() {
-			criticsArray_add_existing();
-			criticsArray_update();
-			insert_heirloom_info();
-			insert_distribution_widget();
-			insert_extras();
-			rating_widget_events_match();
-			update_critics_widget();
-			update_meter_widget();
-			update_distribution_widget();
-			add_heirloom_info_events();
-			add_critics_widget_events();
-			add_rating_widget_events();
-			add_extras_events();
-			$('#rating_widget_HRT UL').css('visibility','visible');
-			$('#updating').css('display','none');
-			clearInterval(updatingTimer);
-		});
-	}
-});
-
-
+// open a messaging port to the event page
+// this will prevent the eventPage from suspending
+var messagePort = chrome.runtime.connect({name: 'readiness'});
+fix_annoying_header();
+// keep telling the eventPage that we're ready for 
+// storage data until it responds with the data
+dataReadyTimer = setInterval(function() {
+	messagePort.postMessage({status: 'ready'});
+	messagePort.onMessage.addListener(function(msg) {
+		if (msg.data) {
+			clearInterval(dataReadyTimer);
+			if($('#critics_widget').length<1) {
+				// interval got cleared correctly
+				ratingsArray = msg.data;
+				if($(scorePanel).length>0) { 
+					// this is a movie listing and
+					insert_critics_widget();
+					insert_rating_widget();
+					show_update_status();
+					find_total_pages();
+					ratingsArray_add_this_movie();
+					// create array of ajax calls to be made
+					var concurrentCalls = scrape_pages_update_arrays();
+					// concurrently execute the calls 
+					$.when.apply(null, concurrentCalls).done(function() {
+						criticsArray_add_existing();
+						criticsArray_update();
+						insert_heirloom_info();
+						insert_distribution_widget();
+						insert_extras();
+						rating_widget_events_match();
+						update_critics_widget();
+						update_meter_widget();
+						update_distribution_widget();
+						add_heirloom_info_events();
+						add_critics_widget_events();
+						add_rating_widget_events();
+						add_extras_events();
+						$('#rating_widget_HRT UL').css('visibility','visible');
+						$('#updating').css('display','none');
+						clearInterval(updatingTimer);
+					});
+				}
+			}
+		}
+	});
+}, 100);
 
 
 
@@ -158,7 +165,7 @@ function insert_heirloom_info() {
 	var txt = '';
 	txt += '<li class="pull-left">&nbsp;|&nbsp;</li>';
 	txt += '<li class="pull-left critics-score active">';
-		txt += '<a href="#" onclick="return false" id="heirloom_tab" class="articleLink unstyled smaller gray">Similar Critics</a></li>';
+		txt += '<a href="#" onclick="return false" id="heirloom_tab" class="articleLink unstyled smaller gray">Similar</a></li>';
 	$('#scorePanel').find('ul:first').find('li:last').after(txt);
 	$('#scorePanel').find('ul:first').find('li:first').toggleClass('active');
 	var $el = $('#all-critics-numbers').clone(true);
@@ -254,6 +261,7 @@ function add_critics_widget_events() {
 		for(x=0,xl=favoritesArray.length; x<xl; x++) {
 			if(favoritesArray[x]==id) {
 				favoritesArray.splice(x,1);
+				match = true;
 				break;
 			}
 		}
@@ -263,6 +271,7 @@ function add_critics_widget_events() {
 
 		storage.set({'favorites': favoritesArray}, function() {	
 		});
+
 		return false;
 	});
 }
@@ -668,136 +677,10 @@ function extras_events_getPearsons(el) {
 
 /////////////////////////
 //                     //
-//    RATINGS DATA     //
-// RETRIEVAL FUNCTIONS //
+//     PAGE DATA       //
+// SCRAPING FUNCTIONS  //
 //                     //
 /////////////////////////
-
-function ratingsArray_create(storageData) {
-	// check validity of storageData (storage.items.ratings)
-	var validData = false;
-	if(storageData) { // data exists
-		if(storageData.length>0) { // it's an array
-			if(storageData[0].length>0) { // we a "column"
-				if(storageData[0][0].length>0) { // 1st cell has an array
-					if(storageData[0][0][0]) { // that array has data
-						ratingsArray = storageData;
-						validData = true;
-					}
-				}
-			}
-		}
-	}
-	if(validData) {
-		ratingsArray_fix_legacy();
-	} else {
-		// no valid data, so construct fresh Array
-		ratingsArray = new Array();
-		// header row
-		ratingsArray[0] = new Array();
-			// header "column"
-			ratingsArray[0][0] = new Array();
-				ratingsArray[0][0][0] = dataVersion; 
-			// first critic column (user)
-			ratingsArray[0][1] = new Array();
-				ratingsArray[0][1][0] = 'you'; // critic name
-				ratingsArray[0][1][1] = 'n/a'; // critic path
-				ratingsArray[0][1][2] = 0; // legacy
-				ratingsArray[0][1][3] = 0; // legacy
-	}
-}
-
-function ratingsArray_fix_legacy() {
-	var wasLegacy = false;
-	if(ratingsArray[0][0][0] < 4) { 
-		// fix really old buggy versions
-		for(var i=0, il=ratingsArray.length; i<il; i++) { // 
-			// check for fouled up rows
-			if(ratingsArray[i]) {
-				for(var j=0, jl=ratingsArray[i].length; j<jl; j++) {
-					// check for foulded up "cells"
-					if(ratingsArray[i][j]) {
-					} else {
-						ratingsArray[i][j] = new Array();	
-					}
-				}
-			} else {
-				ratingsArray.splice(i,1);
-				i-=1;
-			}
-		}
-		for(var j=2, jl=ratingsArray[0].length; j<jl; j++) {
-			// check for fouled up columns
-			if(ratingsArray[0][j]) {
-				var criticName = ratingsArray[0][j][0];
-				if(!criticName || criticName=='' || criticName==0) {
-					// delete column
-					for(var i=0, il=ratingsArray.length; i<il; i++) {
-						ratingsArray[i].splice(j,1);
-					}
-				}
-			} else {
-				// delete column
-				for(var i=0, il=ratingsArray.length; i<il; i++) {
-					ratingsArray[i].splice(j,1);
-				}			
-			}
-		}
-		// an older version incorrectly calculated comparison score
-		if(ratingsArray[0][1][2] > 0) {
-			for(var j=1, jl=ratingsArray[0].length; j<jl; j++) {
-				ratingsArray[0][j][2] = 0;
-				ratingsArray[0][j][3] = 0;
-				for(var i=1, il=ratingsArray.length; i<il; i++) {
-					ratingsArray[i][j][1] = 0;
-				}
-			}
-		}
-		wasLegacy = true;
-	}
-	if(ratingsArray[0][0][0] < 5) {
-		// version 4 saved paths to critic reviews
-		// but that takes up too much storage space 
-		// 5 also saves space on the critic path
-		for(var i=0, il=ratingsArray.length; i<il; i++) {
-			for(var j=1, jl=ratingsArray[0].length; j<jl; j++) {
-				if(i==0) {
-					if(!ratingsArray[0][j][1]) {
-						// somehow a null value snuck in to review with no name
-						ratingsArray[0][j][1] = '';
-					} else {
-						ratingsArray[0][j][1] = ratingsArray[0][j][1].replace(/\/critic\//g,'');
-					}
-				} else {
-					var tempReview = ratingsArray[i][j][0];
-					if(tempReview >= 0) {
-					} else {
-						tempReview = 0;
-					}
-					ratingsArray[i][j] = tempReview;
-				}
-			}
-		}
-		// remove duplicates
-		for(var x=1, xl=ratingsArray[0].length; x<xl; x++) {
-			for(var y=x+1, yl=ratingsArray[0].length; y<yl; y++) {
-				if(ratingsArray[0][x][0]==ratingsArray[0][y][0]) {
-					for(var i=0, il=ratingsArray.length; i<il; i++) {
-						ratingsArray[i].splice(y,1);
-						yl--;
-						xl--;
-					}
-					break;
-				}
-			}
-		}
-		wasLegacy = true;
-	}
-	if(wasLegacy) {
-		ratingsArray[0][0][0] = dataVersion; 
-		save_to_storage();		
-	}
-}
 
 function find_total_pages() {
 	// find total pages to scrape
@@ -1049,8 +932,8 @@ function save_to_storage() {
 /////////////////////////
 
 function fix_annoying_header() {
-	$('.leaderboard_wrapper').css('min-height','0px');
-	$('.leaderboard_wrapper').css('padding','0px');
+	$(annoyingHeader).css('min-height','0px');
+	$(annoyingHeader).css('padding','0px');
 }
 
 function show_update_status() {
@@ -1101,7 +984,7 @@ function update_critics_widget() {
 					tinyMeter = ' rotten';
 				}
 			}
-			var similarity = '';
+			var similarity = ' ful';
 			if(critic[5] < 0.5) { 	
 				similarity = ' non' 
 			} else if(critic[5]<0.6) { 
@@ -1109,7 +992,7 @@ function update_critics_widget() {
 			} else if(critic[5]<0.7) { 
 				similarity = ' med' 
 			}
-			var blurb = '<i>(hasn\'t rated this movie)</i>';
+			var blurb = '<i>(hasn\'t written a review for this movie)</i>';
 			if(critic[3] != '') {
 				blurb = critic[3];
 			}
@@ -1117,19 +1000,17 @@ function update_critics_widget() {
 			urlTxt = urlTxt.replace(/\./g,'');
 			urlTxt = urlTxt.replace(/ /g,'-');
 
-			txt += '<div class="row_wrapper' + rated + similarity + '">';
+			txt += '<div class="row_wrapper' + rated + '">';
 				txt += '<div class="tiny_meter' + tinyMeter + '" title="' + critic[1] + '"></div>';
 				txt += '<a target="_blank" href="' + critic[2] + '" class="review">' + blurb + '</a>';
-				txt += '<a target="_blank" href="../../critic/' + urlTxt + '" class="name">' + critic[0] + '</a>';
+				txt += '<a target="_blank" href="../../critic/' + urlTxt + '" class="name'  + similarity + '">' + critic[0] + '</a>';
 				txt += '<a class="critic_heart" href="#" id="fav_' + urlTxt + '" onclick="return false;"></a>';
 				txt += '<div class="score">' + Math.round(critic[6]*100) + '%</div>';
 				txt += '<div class="count">(' + critic[4] + ')</div>';
 			txt += '</div>';
 		}
-		// send data to the background/event page for analytics
-		chrome.runtime.sendMessage({data: criticsArray}, function(response) {
-//			console.log(response.tenfour);
-		});
+		// send data to the persistent eventPage for analytics
+		messagePort.postMessage({data: criticsArray});
 	}
 	$('#critics_rows').html(txt);
 	// shade rows
@@ -1434,7 +1315,8 @@ function import_raw_data(event) {
 //	reader.readAsBinaryString(file);
 	function receivedText() {
 		var storageData = JSON.parse(reader.result);
-		ratingsArray_create(storageData);
+		var bg = chrome.extension.getBackgroundPage();
+    	bg.epRatingsArray_create(storageData);
 		save_to_storage();
 		location.reload();
 	};
