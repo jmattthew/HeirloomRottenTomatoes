@@ -745,6 +745,7 @@ function scrape_pages_update_arrays() {
 						var criticName = $el.eq(y).find('a').eq(0).html();
 						if(!criticName) { criticName = '(unknown)'; }
 						var criticPath = $el.eq(y).find('a').eq(0).attr('href');
+						if(!criticPath) { criticPath = ''; }
 						criticPath = criticPath.replace(/\/critic\//g,'');
 						var reviewBlurb = $el.eq(y).find('p').eq(0).html();
 						var reviewPath = $el.eq(y).find('a').eq(1).attr('href');
@@ -1107,11 +1108,13 @@ function update_distribution_widget() {
 			}
 			var rating = parseFloat(criticsArray[x][1]);
 			rating = parseInt(Math.round(rating-1));
+			if(rating>4) { rating = 4; } // rotten tomato bug
 			starColumns[rating] += sortScore;
 		}
 	}
 	var colMax = Math.max.apply(Math, starColumns);
 	for(x=0,xl=starColumns.length; x<xl; x++) {
+		console.log(x + ' ' + starColumns[x]);
 		starColumns[x] = starColumns[x]/colMax;
 		starColumns[x] = Math.round(starColumns[x]*35);
 		$('#dist_s' + x).css('height',starColumns[x]);
