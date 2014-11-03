@@ -478,8 +478,8 @@ li a#star_a_0:hover {
 #critics_rows div.noratings { 
 	float: left;
 	width: 100%;
-	margin: 10px;
-	margin-right: 20px;
+	padding: 10px;
+	padding-right: 20px;
 	font-size: 12px;
 	text-align: left;
 }

@@ -3,10 +3,44 @@
 Open-source, copyright free, non-commercial.  Make it better!  tiny_meter.png file is the property of Rotten Tomatoes.  
 
 	TO-DO LIST:
+
+	* scrape any movie ratings existing in RT user account and import
+		check local storage for ratings scrape status
+		add scrape link to extras modal
+		if none, this is new or existing user
+			set ratings scrape status to "unscraped"
+			? new or existing based on ratingsArray > 0
+				add button and explanation for new users
+				add modal window for first run existing users
+			}
+		}
+		if user not logged-in
+			cause FB login prompt
+			set ratings scrape status to "logged in"
+			allow reload 
+			if status, "logged in" auto get ratings
+		}
+		check profile privacy setting
+		if profile hidden, open privacy in an iframe modal and explain need
+			close modal after submit (/user/account/profile_preferences/)
+		display updating message - this may take awhile
+		find user ratings link from header
+		for each .media bottom_divider
+			get first A.href + /reviews
+			for each in ratingsArray, if match found
+				next .media
+			}
+			run special scrape for this movie
+			but, no DOM updates, only adding to ratingsArray
+			update updating message
+		}
+		set ratings scrape status to "scraped"
+		reload
 	
 	* warn user and fail gracefully if RT changes its code
 	* make it work for tv pages
-	* scrape any movie ratings existing in RT user account and import
+		needs an entirely separate ratings & critics database
+		season to season graph would be cool
 	* allow users to compare similarity with each other
 	* stats/graphs about similarity score 
 		* e.g. bell-curve of similarity of all critics
@@ -65,11 +99,6 @@ var annoyingHeader = '.leaderboard_wrapper';
 
 
 
-
-
-
-
-
 /////////////////////////
 //                     //
 //        ACTION       //
@@ -90,7 +119,7 @@ dataReadyTimer = setInterval(function() {
 			if($('#critics_widget').length<1) {
 				// interval got cleared correctly
 				ratingsArray = msg.data;
-				if($(scorePanel).length>0) { 
+				if($(scorePanel).length>0 && location.pathname.indexOf('/tv/')<0) { 
 					// this is a movie listing and
 					insert_critics_widget();
 					insert_rating_widget();
@@ -692,7 +721,12 @@ function find_total_pages() {
 }
 
 function ratingsArray_add_this_movie() {
-	pageFilmName = $('.movie_title span')[0].innerHTML;
+	var yearHTML = $('.movie_title span span').html();
+	var el = $('.movie_title span').clone();
+	$(el).find('span').remove();
+	pageFilmName = $(el).html() + yearHTML;
+	pageFilmName = pageFilmName.replace(/\s+/g,' ');
+	pageFilmName = pageFilmName.replace(/^\s/g,'');
 	pageFilmPath = location.pathname;
 	pageFilmReleaseDate = $('.movie_info .dl-horizontal dd').eq(4).attr('content');
 	for(var i=1, il=ratingsArray.length; i<il; i++) {
@@ -743,7 +777,9 @@ function scrape_pages_update_arrays() {
 				if($el.length>0) {
 					for(var y=0, yl=$el.length; y<yl; y++) {
 						var criticName = $el.eq(y).find('a').eq(0).html();
-						if(!criticName) { criticName = '(unknown)'; }
+						if(!criticName) { 
+							criticName = '(unknown)'; 
+						}
 						var criticPath = $el.eq(y).find('a').eq(0).attr('href');
 						if(!criticPath) { criticPath = ''; }
 						criticPath = criticPath.replace(/\/critic\//g,'');
@@ -766,7 +802,7 @@ function scrape_pages_update_arrays() {
 							ratingsArray[0][columns][0] = criticName;
 							ratingsArray[0][columns][1] = criticPath;
 							ratingsArray[0][columns][2] = 0; // legacy			
-							ratingsArray[0][columns][3] = 0; // legacy	
+							ratingsArray[0][columns][3] = 0; // legacy
 							for(var i=1, il=ratingsArray.length; i<il; i++) { 
 								// for each film row
 								// add new cell to end
@@ -776,7 +812,7 @@ function scrape_pages_update_arrays() {
 							ratingsArray[pageFilmIndex][columns] = criticRating;
 						}
 						var num = criticsArray.length; 
-						criticsArray[num] = new Array();
+						criticsArray[num] = new Array();	
 						criticsArray[num][0] = criticName;
 						criticsArray[num][1] = criticRating;
 						criticsArray[num][2] = reviewPath;
@@ -911,7 +947,8 @@ function criticsArray_widenRating(num,lowest,highest) {
 }
 
 function save_to_storage() {
-	storage.set({'ratings': ratingsArray}, function() {	
+	storage.set({'ratings': ratingsArray}, function() {
+		messagePort.postMessage({ratingsData: ratingsArray});
 	});
 }
 
@@ -950,19 +987,17 @@ function update_critics_widget() {
 	for(i=1,il=ratingsArray.length; i<il; i++) {
 		if(ratingsArray[i][1] > 0) {
 			totalUserRatings++;
-
 		}
 		if(totalUserRatings>1){
 			break;
 		}
 	}
-
-	if(totalUserRatings==0) {
+	if(totalUserRatings<1) {
 		$('#critics_filter').css('display','none');	
 		txt += '<div class="noratings">';
 		txt += 'Thanks for installing the Heirloom Rotten Tomatoes app! This space is empty because you haven\'t used the app to rate any movies yet. To get started, search for a recent movie that you loved and click on one of the stars next to "YOUR RATING" above. <br><br>If you are not logged-in, Rotten Tomatoes will display a login pop-up.';
 		txt += '</div>';
-	} else if(totalUserRatings==1) {
+	} else if(totalUserRatings<2) {
 		$('#critics_filter').css('display','none');	
 		txt += '<div class="noratings">';
 		txt += 'Great! Now just rate just one more movie to see the list of critics ordered by their similarity to you. The more movies you rate, the more accurate the list will become. For fastest results, start by rating a few movies that critics loved but you hated (or visa versa).';	
@@ -972,7 +1007,7 @@ function update_critics_widget() {
 		$('#critics_filter').css('display','block');
 		$('#critics_rows').addClass('cr_empty');
 		$('#critics_rows').addClass('cr_filled');
-		for(y=0,yl=criticsArray.length; y<yl; y++) {			
+		for(y=0,yl=criticsArray.length; y<yl; y++) {
 			var critic = criticsArray[y]
 			var rated = '';
 			var tinyMeter = '';
@@ -1011,7 +1046,7 @@ function update_critics_widget() {
 			txt += '</div>';
 		}
 		// send data to the persistent eventPage for analytics
-		messagePort.postMessage({data: criticsArray});
+		messagePort.postMessage({criticsData: criticsArray});
 	}
 	$('#critics_rows').html(txt);
 	// shade rows
@@ -1114,7 +1149,6 @@ function update_distribution_widget() {
 	}
 	var colMax = Math.max.apply(Math, starColumns);
 	for(x=0,xl=starColumns.length; x<xl; x++) {
-		console.log(x + ' ' + starColumns[x]);
 		starColumns[x] = starColumns[x]/colMax;
 		starColumns[x] = Math.round(starColumns[x]*35);
 		$('#dist_s' + x).css('height',starColumns[x]);
@@ -1235,10 +1269,11 @@ function shade_critic_rows() {
 function erase_data() {
 	var erase = prompt('Type "ok" then press "ok" to permanently erase all of your saved ratings forever.','')
 	if(erase == 'ok') {
-		ratingsArray = null;
-		storage.set({'ratings': ratingsArray}, function() {	
+		ratingsArray = [];
+		storage.set({'ratings': ratingsArray}, function() {
+			messagePort.postMessage({ratingsData: ratingsArray});
+			location.reload();
 		});
-		location.reload();
 	} else {
 		alert('You didn\'t type "ok", so data was NOT erased.');	
 	}
@@ -1318,8 +1353,7 @@ function import_raw_data(event) {
 //	reader.readAsBinaryString(file);
 	function receivedText() {
 		var storageData = JSON.parse(reader.result);
-		var bg = chrome.extension.getBackgroundPage();
-    	bg.epRatingsArray_create(storageData);
+		ratingsArray = storageData;
 		save_to_storage();
 		location.reload();
 	};

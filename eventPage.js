@@ -60,13 +60,23 @@ chrome.runtime.onConnect.addListener(function(messagePort) {
 	messagePort.onMessage.addListener(function(msg) {
 		// listen for readiness message from the content script
 		// and deliver data when message received
-		if (msg.status == 'ready' && dataReady) {
+		if(msg.status == 'ready' && dataReady) {
 			messagePort.postMessage({data: epRatingsArray});
 			console.log('epRatingsArray sent to content script');
 		}
+		// content script saved ratingsArray so
+		// update eventPages copy 
+		if(msg.ratingsData && dataReady) {
+			epRatingsArray = msg.ratingsData;
+			if(epRatingsArray.length<1) {
+				// data erased
+				epRatingsArray_create(0);
+				console.log('all data erased');
+			}
+		}
 		// push name and rank of top 10 critics to gAnalytics 
 		// (10 because trackEvent throttles to 1/sec. after 10 pushes)
-		if(msg.data && !sessionLogged) {
+		if(msg.criticsData && !sessionLogged) {
 			sessionLogged = true;
 			var critics = msg.data;
 			for(var x=0, xl=critics.length; (x<xl) && (x<10); x++) {

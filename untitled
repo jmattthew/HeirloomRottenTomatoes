@@ -1,0 +1,42 @@
+/*
+var txt = '';
+var tvURL = location.pathname;
+if(tvURL.indexOf('/tv/')>-1) {
+	tvURL = tvURL.substring(0,tvURL.length-4);
+	var seasons = $('.seasonSelector li').length;
+	if(seasons>8) seasons = 8;
+	var calls = scrape_tv();
+	// concurrently execute the calls 
+	$.when.apply(null, calls).done(function() {
+		prompt('',txt);
+	});
+
+	function scrape_tv() {
+		var calls = [];
+		for(var s=1; s<=seasons; s++) {
+			var sTxt = 's0';
+			if(s>9) { sTxt = 's'; }
+			sTxt = sTxt + s;
+			calls.push(
+				$.ajax({
+					url: tvURL + sTxt + '/',
+					cache: false,
+					dataType: 'html',			
+				}).done(function(response) {
+					var $el = $('<div>').html(response);
+					console.log($el.length);
+					var el2 = $el.find('#mainColumn span.h3');
+					var year = $(el2).html().replace(/\s/g, '');
+					year = year.replace(/\(|\)/g, '');
+					el2 = $el.find('.meter-value span').eq(0);
+					var meter = $(el2).html();
+					el2 = $el.find('#scoreStats span').eq(2);
+					var count = $(el2).html();
+					txt += year + '\t' + meter + '\t' + count + '\n';
+				})
+			);
+		};
+		return calls;
+	}
+}
+*/
