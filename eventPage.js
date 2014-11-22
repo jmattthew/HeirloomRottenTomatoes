@@ -9,6 +9,7 @@ var storage = chrome.storage.local;
 var epRatingsArray = new Array();
 var dataReady = false;
 var sessionLogged = false;
+var firstRun = '';
 // when storage methods change, this variable
 // allows some older versions to be detected and fixed
 var dataVersion = 5; 
@@ -46,9 +47,14 @@ console.log('app version: ' + appVersion);
 // getting storage from the persistent eventPage 
 // so that it only needs to be retreived once per session
 // note:  storage call is asychronous
-storage.get('ratings', function(items) {
+storage.get(['ratings','firstRun'], function(items) {
 	console.log('storage loaded');
 	epRatingsArray_create(items.ratings);
+	if(!items.firstRun) {
+		firstRun = 'firstRun';
+	} else {
+		firstRun = items.firstRun;
+	}
 	dataReady = true;
 });
 
@@ -59,8 +65,13 @@ chrome.runtime.onConnect.addListener(function(messagePort) {
 	console.assert(messagePort.name == 'readiness');
 	messagePort.onMessage.addListener(function(msg) {
 		// listen for readiness message from the content script
-		// and deliver data when message received
-		if(msg.status == 'ready' && dataReady) {
+		// and deliver the firstRun status
+		if(msg.status == 'sendFirstRun') {
+			messagePort.postMessage({firstRun: firstRun});
+			console.log('firstRun sent to content script');	
+		}
+		// deliver data when firstRun response received
+		if(msg.status == 'sendRatingsArray' && dataReady) {
 			messagePort.postMessage({data: epRatingsArray});
 			console.log('epRatingsArray sent to content script');
 		}
@@ -74,16 +85,24 @@ chrome.runtime.onConnect.addListener(function(messagePort) {
 				console.log('all data erased');
 			}
 		}
+		// content script saved firstRun so
+		// update firstRun here 
+		if(msg.firstRun) {
+			firstRun = msg.firstRun;
+			console.log(firstRun);
+			_gaq.push(['_trackEvent', 'app data', 'import', firstRun]);
+		}
 		// push name and rank of top 10 critics to gAnalytics 
 		// (10 because trackEvent throttles to 1/sec. after 10 pushes)
 		if(msg.criticsData && !sessionLogged) {
 			sessionLogged = true;
-			var critics = msg.data;
+			var critics = msg.criticsData;
 			for(var x=0, xl=critics.length; (x<xl) && (x<10); x++) {
 				var cName = critics[x][0];
 				var cRank = Math.round(critics[x][6]*10000);
 				_gaq.push(['_trackEvent', 'critics', 'rank', cName, cRank]);
 			}
+			console.log('critics data sent to Google Analytics');
 		}
 	});
 });
