@@ -3,9 +3,6 @@
 Open-source, copyright free, non-commercial.  Make it better!  tiny_meter.png file is the property of Rotten Tomatoes.  
 
 	TO-DO LIST:
-
-		open privacy in an iframe
-
 	* warn user and fail gracefully if RT changes its code
 	* make it work for tv pages
 		needs an entirely separate ratings & critics database
@@ -619,7 +616,7 @@ function add_extras_events() {
 			for(var x=0,xl=criticsArray.length; x<xl; x++) {
 				tempStr = criticsArray[x][0];
 				tempStr = tempStr.replace(/,/g,'');
-				theData += '"' + tempStr + '",' + criticsArray[x][3] + ',' + criticsArray[x][4] + ',' + criticsArray[x][6] + '\n';
+				theData += '"' + tempStr + '",' + criticsArray[x][5] + ',' + criticsArray[x][4] + ',' + criticsArray[x][6] + '\n';
 			}
 			if(!$(this).attr('download')) { // no download link so create then simulate click
 				export_data(theData,'my_top_critics.csv','text/plain',this);	
@@ -937,7 +934,7 @@ function add_scrape_calls(calls,totalPages,path,index) {
 				 		if(criticName.indexOf('Full Review')>-1) {
 				 			// this review comes from a publication rather than a critic 
 				 			criticName = $el.eq(y).find('em').eq(0).html();
-				 			criticPath = criticPath.substring(0,criticPath.indexOf('/'));
+				 			criticPath = criticPath.substring(0,criticPath.indexOf('/',7));
 							if(!criticName) { criticName = '(unknown)'; }
 							if(!criticPath) { criticPath = ''; }
 				 		}
@@ -946,6 +943,7 @@ function add_scrape_calls(calls,totalPages,path,index) {
 						var reviewPath = $el.eq(y).find('a').eq(1).attr('href');
 						var ratingEL = $el.eq(y).find('td').eq(3).find('div');
 						var criticRating = sanitize_rating(ratingEL);
+
 						// find matching critic in ratingsArray
 						var newCritic = true;
 						for(var j=2, jl=ratingsArray[0].length; j<jl; j++) {
@@ -970,6 +968,7 @@ function add_scrape_calls(calls,totalPages,path,index) {
 							// for this film, set critic rating
 							ratingsArray[index][columns] = criticRating;
 						}
+
 						var num = criticsArray.length; 
 						criticsArray[num] = [];	
 						criticsArray[num][0] = criticName;
@@ -1036,7 +1035,9 @@ function criticsArray_update() {
 				if(count>0) {
 					criticsArray[y][5] = total/count;
 				} else {
-					criticsArray[y][5] = .6; // no films in common, so assume 60% similarity
+					// critic has no films in common with user
+					// so asign the average similarity
+					criticsArray[y][5] = .64;
 				}
 			}
 		}
@@ -1080,6 +1081,7 @@ function criticsArray_compareRatings(filmIndex, aCriticIndex, bCriticIndex) {
 	// are more similar than "bad" & "okay", etc.
 	cR = criticsArray_widenRating(cR,1,5);
 	uR = criticsArray_widenRating(uR,1,5);
+
 	// compare them
 	float = Math.abs(cR-uR);
 	float = (4-float)/4;
@@ -1087,12 +1089,18 @@ function criticsArray_compareRatings(filmIndex, aCriticIndex, bCriticIndex) {
 }
 
 function criticsArray_widenRating(num,lowest,highest) {
-	// widends distance of value from center point between lowest possible and highest possible values
+	// widends distance of value from center point 
+	// between lowest and highest possible values
+	// the effect is that a 1 vs. 2 star ratings pair 
+	// (i.e. "very bad" vs. "bad") is considered more 
+	// similar than a 2 vs. 3 star ratings pair
+	// (i.e. "bad" vs. "okay")
 	//	*   *   *   *   *   *   *   *   *
 	//	* *   *   *     *     *   *   * *
 	//	**  *    *      *      *    *  **
 	num = parseFloat(num);
-	if(isNaN(num) || num<lowest || num>highest) { // sanitize, convert bad ratings to unrated
+	if(isNaN(num) || num<lowest || num>highest) { 
+		// sanitize, convert bad ratings to unrated
 		return 0;
 	} else {
 		var center = (highest-lowest)/2;
@@ -1625,7 +1633,7 @@ function update_critics_widget() {
 		$('#critics_rows').addClass('cr_empty');
 		$('#critics_rows').addClass('cr_filled');
 		for(y=0,yl=criticsArray.length; y<yl; y++) {
-			var critic = criticsArray[y]
+			var critic = criticsArray[y];
 			var rated = '';
 			var tinyMeter = '';
 			if(pageFilmIndex>0) { // film page
@@ -1658,7 +1666,7 @@ function update_critics_widget() {
 				txt += '<a target="_blank" href="' + critic[2] + '" class="review">' + blurb + '</a>';
 				txt += '<a target="_blank" href="../../critic/' + urlTxt + '" class="name'  + similarity + '">' + critic[0] + '</a>';
 				txt += '<a class="critic_heart" href="#" id="fav_' + urlTxt + '" onclick="return false;"></a>';
-				txt += '<div class="score">' + Math.round(critic[6]*100) + '%</div>';
+				txt += '<div class="score">' + Math.round(critic[5]*100) + '%</div>';
 				txt += '<div class="count">(' + critic[4] + ')</div>';
 			txt += '</div>';
 		}
