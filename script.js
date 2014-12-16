@@ -941,6 +941,7 @@ function add_scrape_calls(calls,totalPages,path,index) {
 						criticPath = criticPath.replace(/\/critic\//g,'');
 						var reviewBlurb = $el.eq(y).find('p').eq(0).html();
 						var reviewPath = $el.eq(y).find('a').eq(1).attr('href');
+						if(!reviewPath) { reviewPath = criticPath; }
 						var ratingEL = $el.eq(y).find('td').eq(3).find('div');
 						var criticRating = sanitize_rating(ratingEL);
 

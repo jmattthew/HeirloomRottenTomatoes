@@ -118,6 +118,9 @@
 	color: white;
 }
 
+#topSection .col-xs-17 {
+	padding: 0px;
+}
 
 #meter_widget { 
 	position: relative;
