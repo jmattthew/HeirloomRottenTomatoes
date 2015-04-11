@@ -87,11 +87,10 @@ var starWidgetRT = '#rating_widget .stars';
 var allCriticsFreshnessScoreRT = '#all-critics-meter';
 var scorePanel = '#scorePanel';
 var reviewsPageCount = '.pageInfo';
-var reviewsList = '#reviews';
+var reviewsList = '.review_table_row';
 var audienceBox = '.audience-info';
 var criticsCount = '#criticHeaders';
 var annoyingHeader = '.leaderboard_wrapper';
-
 
 
 
@@ -205,8 +204,9 @@ function insert_critics_widget() {
 		txt += '</div>'
 	txt += '</div>'
 	// check if we're on a film page or not
-	$('#scorePanel').after(txt);
-	$('#movie_videos').css('overflow','scroll')
+	$(scorePanel).after(txt);
+	$(scorePanel).css('margin-bottom','20px');
+	$('#movie_videos').css('overflow','scroll');
 }
 
 function insert_heirloom_info() {
@@ -214,8 +214,8 @@ function insert_heirloom_info() {
 	txt += '<li class="pull-left">&nbsp;|&nbsp;</li>';
 	txt += '<li class="pull-left critics-score active">';
 		txt += '<a href="#" onclick="return false" id="heirloom_tab" class="articleLink unstyled smaller gray">Similar</a></li>';
-	$('#scorePanel').find('ul:first').find('li:last').after(txt);
-	$('#scorePanel').find('ul:first').find('li:first').toggleClass('active');
+	$(scorePanel).find('ul:first').find('li:last').after(txt);
+	$(scorePanel).find('ul:first').find('li:first').toggleClass('active');
 	var $el = $('#all-critics-numbers').clone(true);
 	$($el).attr('id','heirloom-critics-numbers');
 	$('#all-critics-numbers').parent().append($el);
@@ -295,8 +295,8 @@ function insert_extras() {
 
 function add_heirloom_info_events() {
 	$('#heirloom_tab').click(function(event) {
-		$('#scorePanel').find('ul:first').find('li').removeClass('active');
-		$('#scorePanel').find('ul:first').find('li:last').addClass('active');
+		$(scorePanel).find('ul:first').find('li').removeClass('active');
+		$(scorePanel).find('ul:first').find('li:last').addClass('active');
 		$('#all-critics-numbers').removeClass('active');
 		$('#top-critics-numbers').removeClass('active');
 		$('#heirloom-critics-numbers').addClass('active');
@@ -520,7 +520,7 @@ function add_extras_events() {
 		var count4 = 0;
 		var count5 = 0;
 		var countTotal = 0;
-		var list = '';
+		var list = '<span style="margin-bottom:0px;">Your Rating, (Average Critic Rating), Movie Title</span>'
 		for(var i=1,il=tempArray.length; i<il; i++) {
 			if(tempArray[i][1]>0) {
 				// user rated this movie
@@ -542,7 +542,23 @@ function add_extras_events() {
 						break				
 				}
 				countTotal++;
-				list += '<span style="margin-bottom:0px;">(' + tempArray[i][1] + ' stars)&nbsp;';
+				var average = 0;
+				var total = 0; 
+				for(var j=2, jl=tempArray[0].length; j<jl; j++) {
+					if(tempArray[i][j]>0) {
+						average += tempArray[i][j];
+						total++;
+					}
+				}
+				if(total>0) {
+					average = average/total
+				} else {
+					average = 0;
+				}
+				average = Math.round(average*10)/10;
+				var avT = average + '';
+				if(avT.indexOf('.')<0) { avT += '.0'; }
+				list += '<span style="margin-bottom:0px;">' + tempArray[i][1] + '&nbsp;(' + avT + '),&nbsp;';
 				list += '<a target="_blank" href="'+  tempArray[i][0][1] + '">' + tempArray[i][0][0] + '</a></span>';
 			}
 		}
@@ -879,6 +895,10 @@ function ratingsArray_add_this_movie() {
 	pageFilmName = pageFilmName.replace(/\s+/g,' ');
 	pageFilmName = pageFilmName.replace(/^\s/g,'');
 	pageFilmPath = location.pathname;
+	if(pageFilmPath.charAt(pageFilmPath.length-1)!='/') {
+		// coud happen if someone manually enters url
+		pageFilmPath = pageFilmPath + '/';
+	}
 	pageFilmReleaseDate = $('.movie_info .dl-horizontal dd').eq(4).attr('content');
 	for(var i=1, il=ratingsArray.length; i<il; i++) {
 		// search for this film in the array
@@ -923,26 +943,25 @@ function add_scrape_calls(calls,totalPages,path,index) {
 			}).done(function(response) {
 				var $el = $('<div>').html(response);
 				$el = $el.find(reviewsList);
-				$el = $el.find('tr');
 				// for each critic on this page
 				if($el.length>0) {
 					for(var y=0, yl=$el.length; y<yl; y++) {
-						var criticName = $el.eq(y).find('a').eq(0).html();
-						var criticPath = $el.eq(y).find('a').eq(0).attr('href');
+						var criticName = $el.eq(y).find('.critic_name').find('a').eq(0).html();
+						var criticPath = $el.eq(y).find('.critic_name').find('a').eq(0).attr('href');
 						if(!criticName) { criticName = '(unknown)'; }
 						if(!criticPath) { criticPath = ''; }
 				 		if(criticName.indexOf('Full Review')>-1) {
 				 			// this review comes from a publication rather than a critic 
-				 			criticName = $el.eq(y).find('em').eq(0).html();
+				 			criticName = $el.eq(y).find('.critic_name').find('em').eq(0).html();
 				 			criticPath = criticPath.substring(0,criticPath.indexOf('/',7));
 							if(!criticName) { criticName = '(unknown)'; }
 							if(!criticPath) { criticPath = ''; }
 				 		}
 						criticPath = criticPath.replace(/\/critic\//g,'');
-						var reviewBlurb = $el.eq(y).find('p').eq(0).html();
-						var reviewPath = $el.eq(y).find('a').eq(1).attr('href');
+						var reviewBlurb = $el.eq(y).find('.the_review').eq(0).html();
+						var reviewPath = $el.eq(y).find('.review_desc').find('a').eq(0).attr('href');
 						if(!reviewPath) { reviewPath = criticPath; }
-						var ratingEL = $el.eq(y).find('td').eq(3).find('div');
+						var ratingEL = $el.eq(y).find('.review_container');
 						var criticRating = sanitize_rating(ratingEL);
 
 						// find matching critic in ratingsArray
@@ -1791,10 +1810,11 @@ function sanitize_rating(el) {
 	// depends on RT maintaining its element ID conventions
 	var txt = '';
 	var rating = 0;
-	if($(el).attr('tip')) { 
-		// complex ratings
-		txt = $(el).attr('tip');
+	txt = $(el).find('.review_desc').html();
+	if(txt.indexOf('Score: ')>-1) {
 		txt = txt.substring(txt.indexOf('Score: ')+7,txt.length);
+		txt = txt.substring(0,txt.indexOf('</')-1);
+		txt = txt.replace(/\s+$/g,'');
 		var fraction = txt.split('/');
 		if(fraction.length==2) {
 			// franction scores, e.g. 3.5/4
@@ -1805,60 +1825,59 @@ function sanitize_rating(el) {
 			switch(fraction[0]) {
 				case 'A+': 
 					rating = 5;
-            		break;
+	        		break;
 				case 'A': 
 					rating = 5;
-            		break;
+	        		break;
 				case 'A-': 
 					rating = 4.5;
-            		break;			
+	        		break;			
 				case 'B+': 
 					rating = 4.5;
-            		break;			
+	        		break;			
 				case 'B': 
 					rating = 4;
-            		break;			
+	        		break;			
 				case 'B-': 
 					rating = 3.5;
-            		break;			
+	        		break;			
 				case 'C+': 
 					rating = 3.5;
-            		break;			
+	        		break;			
 				case 'C': 
 					rating = 3;
-            		break;			
+	        		break;			
 				case 'C-': 
 					rating = 2.5;
-            		break;			
+	        		break;			
 				case 'D+': 
 					rating = 2.5;
-            		break;			
+					break;			
 				case 'D': 
 					rating = 2;
-            		break;			
+	        		break;			
 				case 'D-': 
 					rating = 1.5;
-            		break;			
+	        		break;			
 				case 'F+': 
 					rating = 1.5;
-            		break;			
+	        		break;			
 				case 'F': 
 					rating = 1;
-            		break;			
+	        		break;			
 				case 'F-': 
 					rating = 1;
-            		break;			
+	        		break;			
 			}
 		}
 	} else {
-		// boolean ratings
-		// note that this script interprets a "fresh" rating as "good" rather than "best"
-		// and "rotton" as "bad" rather than "worst"
-		if($(el).attr('class').indexOf('fresh') > -1) {
-			rating = 4; 
+		// Sometimes there's no rating, so we go with the
+		// value of the fresh/rotten icon.
+		if($(el).find('.review_icon').attr('class').indexOf('fresh') > -1) {
+			rating = 4; // "fresh" = "good" not "best"
 		} else {
-			rating = 2;
-		}	
+			rating = 2; // "rotten" = "bad" not "worst"
+		}			
 	}
 	return rating;
 }

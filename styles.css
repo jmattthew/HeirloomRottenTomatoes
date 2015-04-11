@@ -340,10 +340,9 @@ li a#star_a_0:hover {
 }
 
 #critics_widget {
+	width: 524px;
 	margin: 0px; 
-	margin-top: 20px; 
 	background-color: rgb(242, 241, 231); 
-	width: 100%; 
 	padding: 0px;
 	overflow: scroll;
 	box-shadow: inset 0px -15px 20px -14px rgba(0, 0, 0, 0.2);
