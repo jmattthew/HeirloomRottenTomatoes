@@ -575,7 +575,6 @@ function add_extras_events() {
 		variance += Math.pow(((count1/countTotal)-0.2),2);
 		variance = variance/5;
 		var stdev = Math.sqrt(variance);
-		console.log(stdev)
 		var variation = Math.round(((0.4472-stdev)/0.45)*100);
 		table += 'Total ratings: ' + countTotal + '<br>';
 		table += 'positivity: ' + positivity + '%<br>';
@@ -1813,7 +1812,7 @@ function sanitize_rating(el) {
 	txt = $(el).find('.review_desc').html();
 	if(txt.indexOf('Score: ')>-1) {
 		txt = txt.substring(txt.indexOf('Score: ')+7,txt.length);
-		txt = txt.substring(0,txt.indexOf('</')-1);
+		txt = txt.substring(0,txt.indexOf('</'));
 		txt = txt.replace(/\s+$/g,'');
 		var fraction = txt.split('/');
 		if(fraction.length==2) {
