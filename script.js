@@ -887,8 +887,8 @@ function find_total_pages() {
 }
 
 function ratingsArray_add_this_movie() {
-	var yearHTML = $('.movie_title span span').html();
-	var el = $('.movie_title span').clone();
+	var yearHTML = $('.movie .title span').html();
+	var el = $('.movie .title').clone();
 	$(el).find('span').remove();
 	pageFilmName = $(el).html() + yearHTML;
 	pageFilmName = pageFilmName.replace(/\s+/g,' ');
@@ -1194,6 +1194,7 @@ function firstRun_check() {
 
 function firstRun_userIDRT() {
 	userIDRT = $(userRatingsLink).eq(0).attr('href');
+	if(typeof userIDRT == 'undefined') { userIDRT = ''; }
 	userIDRT = userIDRT.substring(userIDRT.indexOf('id/')+3,userIDRT.length);
 	userIDRT = userIDRT.substring(0,userIDRT.indexOf('/ratings'));
 }
@@ -1210,8 +1211,8 @@ function firstRun_selectModal(hasRatings,ratingsArePublic) {
 
 function firstRun_getRatings() {
 	var hasRatings = false;
-	var txt = $(userRatingsLink)[0].lastChild.nodeValue;
-	txt = txt.substring(0,txt.indexOf('Ratings')-1);
+	var txt = $(userRatingsLink + ' .count').html();
+	console.log(txt);
 	if(parseInt(txt)>1) {
 		hasRatings = true;
 	}
@@ -1228,8 +1229,8 @@ function firstRun_showModal(modalType) {
 	var firstRunIntro = '';
 	if(ratingsArray.length > 1) {
 		// existing app user
-		firstRunSubheader = 'New Feature for version '+ appVersion +'!';
-		firstRunIntro = 'Now you can import all the ratings from your Rotten Tomatoes account. If you rated some movies before installing this app, importing those ratings will make the app more accurate.';
+		firstRunSubheader = 'This is version '+ appVersion;
+		firstRunIntro = 'You can import all the ratings from your Rotten Tomatoes account. If you rated some movies before installing this app, importing those ratings will make the app more accurate.  This process may take up to a few minutes depending on your connection speed and number of ratings.  It\'s worth the wait!;
 	} else {
 		// new app install
 		firstRunSubheader = 'Getting Started:';
@@ -1343,7 +1344,7 @@ function firstRun_assignEvents() {
 		// if user logs in via Facebook, 
 		// no reload, so check firstRun periodically 
 		var fbTimer = setInterval(function() {
-			var loggedIn = firstRun_getLogin();
+			var loggedIn = firstRun_userIDRT();
 			if(loggedIn) {
 				clearInterval(fbTimer);
 				firstRun_check();
@@ -1536,7 +1537,7 @@ function firstRun_scrape_critic_ratings() {
 
 	// concurrently execute the totalPages calls 
 	$.when.apply(null, frCallsTotalPages).done(function() {
-		frImportMessage = 'Found your ratings for ' + frMoviesCount + ' movies previously unknown to this app.  Now importing every critics\'s rating of each movie.  This could take up to a few minutes depending on your connection speed.' ;
+		frImportMessage = 'Found your ratings for ' + frMoviesCount + ' movies previously unknown to this app.  Now importing every critics\'s rating of each movie.' ;
 		// may have been set by earlier if this is a movie page
 		frRatingsImported = 0;
 		for(x=0; x<frMoviesCount; x++) {
