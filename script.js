@@ -1230,7 +1230,7 @@ function firstRun_showModal(modalType) {
 	if(ratingsArray.length > 1) {
 		// existing app user
 		firstRunSubheader = 'This is version '+ appVersion;
-		firstRunIntro = 'You can import all the ratings from your Rotten Tomatoes account. If you rated some movies before installing this app, importing those ratings will make the app more accurate.  This process may take up to a few minutes depending on your connection speed and number of ratings.  It\'s worth the wait!;
+		firstRunIntro = 'You can import all the ratings from your Rotten Tomatoes account. If you rated some movies before installing this app, importing those ratings will make the app more accurate.  This process may take up to a few minutes depending on your connection speed and number of ratings.  It\'s worth the wait!';
 	} else {
 		// new app install
 		firstRunSubheader = 'Getting Started:';
