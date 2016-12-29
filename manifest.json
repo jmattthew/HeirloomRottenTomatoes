@@ -1,29 +1,29 @@
 {
-	"manifest_version": 2,	
+	"manifest_version": 2,
 	"name": "Heirloom Rotten Tomatoes",
-	"version": "2.2.4",
+	"version": "2.2.6",
   	"description": "Enhance Rotten Tomatoes! Find the critics who are most like you.",
-	"icons": { 
-		"48": "icon.png" 
+	"icons": {
+		"48": "icon.png"
 	},
 	"background": {
-		"scripts": [ 
-			"eventPage.js" 
+		"scripts": [
+			"eventPage.js"
 		],
 		"persistent": false
 	},
   	"content_scripts": [
 		{
-			"matches": [ 
-				"http://www.rottentomatoes.com/*", 
+			"matches": [
+				"http://www.rottentomatoes.com/*",
 				"https://www.rottentomatoes.com/*" ],
-			"css": [ 
+			"css": [
 				"styles.css"
 			],
-			"js": [ 
+			"js": [
 				"jquery-1.11.1.min.js",
 				"script.js" ]
-		} 
+		}
 	],
 	"web_accessible_resources": [
 		"images/distribution_bg.png",

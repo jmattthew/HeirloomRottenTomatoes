@@ -1,6 +1,6 @@
 /*
 
-Open-source, copyright free, non-commercial.  Make it better!  tiny_meter.png file is the property of Rotten Tomatoes.  
+Open-source, copyright free, non-commercial.  Make it better!  tiny_meter.png file is the property of Rotten Tomatoes.
 
 	TO-DO LIST:
 	* warn user and fail gracefully if RT changes its code
@@ -8,7 +8,7 @@ Open-source, copyright free, non-commercial.  Make it better!  tiny_meter.png fi
 		needs an entirely separate ratings & critics database
 		season to season graph would be cool
 	* allow users to compare similarity with each other
-	* stats/graphs about similarity score 
+	* stats/graphs about similarity score
 		* e.g. bell-curve of similarity of all critics
 
 */
@@ -82,13 +82,14 @@ var userRatings = '.media-body';
 var userPrivacySetting = '.content_body input';
 var userPrivacyAlert = '#headerUserSection .name a';
 var freshPick = '#header-certified-fresh-picks a';
-var loginLinkRT = '#header-top-bar-login'; 
-var starWidgetRT = '#rating_widget .stars';
+var loginLinkRT = '#header-top-bar-login';
+var ratingWidgetAreaRT = '#rating-root';
+var starWidgetRT = '#rating_widget_desktop .rating-stars';
 var allCriticsFreshnessScoreRT = '#all-critics-meter';
 var scorePanel = '#scorePanel';
 var reviewsPageCount = '.pageInfo';
 var reviewsList = '.review_table_row';
-var audienceBox = '.audience-info';
+var audienceBox = '.audience-panel .audience-info';
 var criticsCount = '#criticHeaders';
 var annoyingHeader = '.leaderboard_wrapper';
 
@@ -126,7 +127,7 @@ messagePort.onMessage.addListener(function(msg) {
 	if(msg.data) {
 		ratingsArray = msg.data;
 		firstRun_check();
-		if($(scorePanel).length>0 && location.pathname.indexOf('/tv/')<0) { 
+		if($(scorePanel).length>0 && location.pathname.indexOf('/tv/')<0) {
 			// this is a movie listing
 			insert_critics_widget();
 			insert_rating_widget();
@@ -137,7 +138,7 @@ messagePort.onMessage.addListener(function(msg) {
 			var concurrentCalls = [];
 			// each scrape call updates the ratingsArray & criticsArray
 			add_scrape_calls(concurrentCalls,totalPages,pageFilmPath,pageFilmIndex);
-			// concurrently execute the calls 
+			// concurrently execute the calls
 			$.when.apply(null, concurrentCalls).done(function() {
 				criticsArray_add_existing();
 				criticsArray_update();
@@ -263,7 +264,7 @@ function insert_rating_widget() {
 
 function insert_extras() {
 	var txt = '';
-	txt += '<div><a href="#" id="hrt_aboutLink">Heirloom App Extras</a></div>';
+	txt += '<div><a href="#" id="hrt_aboutLink" style="font-size:20px;background:none;">Heirloom Help</a></div>';
 	var el = $('#heirloom-critics-numbers');
 	$(el).find('#scoreStats').append(txt);
 }
@@ -307,7 +308,7 @@ function add_critics_widget_events() {
 	$('#critics_filter').click(function(event) {
 		apply_critic_filter();
 		return false;
-	});	
+	});
 	$('.critic_heart').click(function(event) {
 		var match = false;
 		var id = $(this).attr('id');
@@ -324,15 +325,15 @@ function add_critics_widget_events() {
 			favoritesArray[favoritesArray.length] = id;
 		}
 
-		storage.set({'favorites': favoritesArray}, function() {	
+		storage.set({'favorites': favoritesArray}, function() {
 		});
 
 		return false;
 	});
 
 	$('#noratings_import').click(function(event) {
-		firstRun = 'firstRun'; 
-		messagePort.postMessage({firstRun: firstRun}); 
+		firstRun = 'firstRun';
+		messagePort.postMessage({firstRun: firstRun});
 		firstRun_check();
 		return false;
 	});
@@ -357,21 +358,17 @@ function add_rating_widget_events() {
 			return false;
 		});
 	}
-	
+
 	// add new event to RT's native rating widget
 	// will execute whether real or simulated click
 	var rtWidget = $(starWidgetRT).eq(0);
 	$(rtWidget).click(function(event) {
 		// check class for how many stars were clicked and whether to save locally
-		$(this).removeClass('score');
-		var num = 0;
+		var rtStars = $(rtWidget)[0].style.width;
+		var num = Math.round(parseInt(rtStars)/20);
 		var simulated = false;
 		var classList = $(this).attr('class').split(/\s+/);
 		$.each(classList, function(index, item) {
-			if(item.indexOf('score')>-1) {
-				var stars = item.substring(5,item.length);
-				num = Math.round(parseInt(stars)/10);
-			}
 			if(item.indexOf('simulated')>-1) {
 				simulated = true;
 			}
@@ -395,19 +392,15 @@ function rating_widget_events_match() {
 	rating_widget_events_update(num);
 	// logged in to RT
 
-	// RT doesn't pull in its user rating record 
+	// RT doesn't pull in its user rating record
 	// until well after the page loads,
 	// so we have to listen for it
 	MutationObserver = window.MutationObserver || window.WebKitMutationObserver;
 	var observer = new MutationObserver(function(mutations, observer) {
-		var rtWidget = $(starWidgetRT).eq(0);
-		var rtStars = $(rtWidget).attr('class');
-		num = 0;
-		if(rtStars.indexOf('score')>-1) {
-			rtStars = rtStars.substring(rtStars.indexOf('score')+5,rtStars.length);
-			num = Math.round(parseInt(rtStars)/10);			
-		}
-		if(num>0 && num != ratingsArray[pageFilmIndex][1]) { 
+		var rtWidget = $(starWidgetRT);
+		var rtStars = $(rtWidget)[0].style.width;
+		var num = Math.round(parseInt(rtStars)/20);
+		if(num>0 && num != ratingsArray[pageFilmIndex][1]) {
 			// RT rating exists and doesn't match local rating
 			// override local
 			rating_widget_events_save(num);
@@ -417,17 +410,17 @@ function rating_widget_events_match() {
 			update_meter_widget();
 			update_distribution_widget();
 			save_to_storage();
-		} else { 
-			if(ratingsArray[pageFilmIndex][1]>0) { 
+		} else {
+			if(ratingsArray[pageFilmIndex][1]>0) {
 				// RT rating doesn't exist but local rating does
 				// so update RT widget
 				simulate_rt_widget_click(num);
-			}	
+			}
 		}
 		observer.disconnect();
 	});
-	var el = document.getElementById('rating_widget');
-	observer.observe(el, {
+	var observationTarget = $(ratingWidgetAreaRT)[0];
+	observer.observe(observationTarget, {
 	  subtree: true,
 	  attributes: true
 	});
@@ -447,14 +440,13 @@ function rating_widget_events_save(star) {
 }
 
 function simulate_rt_widget_click(star) {
-	var rtWidget = $(starWidgetRT).eq(0); 
+	var rtWidget = $(starWidgetRT).eq(0);
 	// record that this is a simulated click
-	$(rtWidget).addClass('simulated');			
+	$(rtWidget).addClass('simulated');
 	// record new rating (used by local rating widget)
-	var str = (star*10).toString();
-	if(str==0) { str = '00'; }
-	str = 'score'+str;
-	$(rtWidget).removeClass('score score00 score05 score10 score15 score20 score25 score30 score35 score40 score45 score50').addClass(str);
+	var str = (star*20).toString();
+	str += '%';
+	$(rtWidget).css('width','str');
 	// find rt widget position accounting for scroll
 	var cX = rtWidget[0].getBoundingClientRect().left;
 	cX += ((star*28)-8);
@@ -472,22 +464,24 @@ function add_extras_events() {
 		$('BODY').append($('<div>',{ id: 'hrt_modal', style: 'width: 530px;' }));
 		$('#hrt_modal').append($('<div>', { id: 'hrt_modalInner', style: 'height: 400px;'}));
 		$('#hrt_modalInner').append($('<strong>', { text: 'Thanks for Using Heirloom Rotten Tomatoes - Version ' + appVersion + '!', style: 'text-align:center; padding-bottom:10px;' }));
-		$('#hrt_modalInner').append($('<strong>', { text: 'Information the app collects:' }));
-		$('#hrt_modalInner').append($('<span>', { text: 'This app only saves ratings data to your computer. Your movie ratings and the pages that you visit are 100% private to your computer and never transmitted. The app never accesses nor stores any login info.  It uses a Google Analytics cookie to send anonymous information to the developer such as app usage and critic ranking.' }));
-		$('#hrt_modalInner').append($('<strong>', { text: 'This is an open-source, fan supported project:' }));
-		$('#hrt_modalInner').append($('<span>', { text: 'Neither this browser app nor it\'s developer are affiliated with or supported by Rotten Tomatoes in any way. To report an issue or make a nice comment, tweet ' }));
+		$('#hrt_modalInner').append($('<span>', { text: 'To report an problem or to make a nice comment, tweet ' }));
 		$('#hrt_modalInner').find('span:last').append($('<a>', { href: 'http://twitter.com/mattthew', target: '_blank', text: '@mattthew' }));
-		$('#hrt_modalInner').append($('<span>', { text: 'If you want to send me a few pennies worth of Bitcoin, ' }));
-		$('#hrt_modalInner').find('span:last').append($('<a>', { href: 'http://mattthew.tip.me', target: '_blank', text: 'go for it!' }));
-		$('#hrt_modalInner').append($('<strong>', { text: 'Import your past ratings from your Rotten Tomatoes account:' }));
-		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'import now', id: 'hrt_import_ratings' }));
-		$('#hrt_modalInner').append($('<strong>'));
-		$('#hrt_modalInner').append($('<strong>', { text: 'About your movie ratings:' }));
+		$('#hrt_modalInner').append($('<strong>', { text: 'Your ratings keep this project alive!' }));
+		$('#hrt_modalInner').append($('<span>', { text: 'This free app is an open-source, fan supported, labor of love. To show your support, please ' }));
+		$('#hrt_modalInner').find('span:last').append($('<a>', { href: 'https://chrome.google.com/webstore/detail/heirloom-rotten-tomatoes/ckmbpodfggiamhcmpilepdccpdnpfofd/reviews', target: '_blank', text: 'add a rating' }));
+		$('#hrt_modalInner').find('span:last').append('. Thanks! ');
+		$('#hrt_modalInner').find('span:last').append(' Neither this browser app nor it\'s developer are affiliated with or supported by Rotten Tomatoes in any way.');
+		$('#hrt_modalInner').append($('<strong>', { text: 'Import ratings from your account:' }));
+		$('#hrt_modalInner').append($('<span>', { text: 'If you\'ve rated any movies on Rotten Tomatoes, ' }));
+		$('#hrt_modalInner').find('span:last').append($('<a>', { href: '#', text: 'import your ratings now', id: 'hrt_import_ratings' }));
+		$('#hrt_modalInner').find('span:last').append(' to improve the accuracy of this app.');
+		$('#hrt_modalInner').append($('<strong>', { text: 'Summary of your movie ratings:' }));
 		$('#hrt_modalInner').append($('<span>', { id: 'hrt_ratings_table' }));
 		$('#hrt_modalInner').append($('<span>', { text: 'Positivity: 0% means that you gave every movie a 1 star; rating, while 100% means that you gave every movie a 5 star; rating.  For comparison, 3 out of 4 critics on Rotten Tomatoes are between 61-80% positive.' }));
 		$('#hrt_modalInner').append($('<span>', { text: 'Variation:  0% means that you gave every movie the same rating (whether high or low), while 100% means you are equally as likely to give any rating.  For comparison, 2 out of 3 critics on Rotten Tomatoes have 51-70% variation in their ratings.' }));
-		$('#hrt_modalInner').append($('<strong>'));
-		$('#hrt_modalInner').append($('<strong>', { text: 'Your ' + totalUserRatings + ' movie ratings:' }));
+		$('#hrt_modalInner').append($('<strong>', { text: 'Information this app collects:' }));
+		$('#hrt_modalInner').append($('<span>', { text: 'This app only saves ratings data to your computer. Your movie ratings and the pages that you visit are 100% private to your computer and never transmitted. The app never accesses nor stores any login info.  It uses a Google Analytics cookie to send anonymous information to the developer such as app usage and critic ranking.' }));
+		$('#hrt_modalInner').append($('<strong>', { text: 'You\'ve rated ' + totalUserRatings + ' movies:' }));
 		$('#hrt_modalInner').append($('<div>', { id: 'hrt_rated_movies' }));
 		$('#hrt_modalInner').append($('<strong>'));
 		$('#hrt_modalInner').append($('<strong>', { text: 'Experimental features:' }));
@@ -513,7 +507,7 @@ function add_extras_events() {
 			var aSort = a[1];
 			var bSort = b[1];
 			return bSort-aSort;
-		});			
+		});
 		var count1 = 0;
 		var count2 = 0;
 		var count3 = 0;
@@ -539,11 +533,11 @@ function add_extras_events() {
 						break
 					case 5:
 						count5++;
-						break				
+						break
 				}
 				countTotal++;
 				var average = 0;
-				var total = 0; 
+				var total = 0;
 				for(var j=2, jl=tempArray[0].length; j<jl; j++) {
 					if(tempArray[i][j]>0) {
 						average += tempArray[i][j];
@@ -558,7 +552,7 @@ function add_extras_events() {
 				average = Math.round(average*10)/10;
 				var avT = average + '';
 				if(avT.indexOf('.')<0) { avT += '.0'; }
-				list += '<span style="margin-bottom:0px;">' + tempArray[i][1] + '&nbsp;(' + avT + '),&nbsp;';
+				list += '<span style="margin-bottom:0px;">' + tempArray[i][1] + ',&nbsp;(' + avT + '),&nbsp;';
 				list += '<a target="_blank" href="'+  tempArray[i][0][1] + '">' + tempArray[i][0][0] + '</a></span>';
 			}
 		}
@@ -577,13 +571,13 @@ function add_extras_events() {
 		var stdev = Math.sqrt(variance);
 		var variation = Math.round(((0.4472-stdev)/0.45)*100);
 		table += 'Total ratings: ' + countTotal + '<br>';
-		table += 'positivity: ' + positivity + '%<br>';
-		table += 'variation: ' + variation + '%<br>';
 		table += '5&#9733; ratings: ' + count5 + '<br>';
 		table += '4&#9733; ratings: ' + count4 + '<br>';
 		table += '3&#9733; ratings: ' + count3 + '<br>';
 		table += '2&#9733; ratings: ' + count2 + '<br>';
 		table += '1&#9733; ratings: ' + count1 + '<br>';
+		table += 'positivity: ' + positivity + '%<br>';
+		table += 'variation: ' + variation + '%<br>';
 		$('#hrt_ratings_table').html(table)
 
 		positionModal(530);
@@ -634,7 +628,7 @@ function add_extras_events() {
 				theData += '"' + tempStr + '",' + criticsArray[x][5] + ',' + criticsArray[x][4] + ',' + criticsArray[x][6] + '\n';
 			}
 			if(!$(this).attr('download')) { // no download link so create then simulate click
-				export_data(theData,'my_top_critics.csv','text/plain',this);	
+				export_data(theData,'my_top_critics.csv','text/plain',this);
 			}
 		});
 
@@ -672,7 +666,7 @@ function extras_events_compareAll(el) {
 		}
 		// compare critics
 		for(var jA=1; jA<jl; jA++) { // factorially iterate critics
-			for(var jB=jA; jB<jl; jB++) { 
+			for(var jB=jA; jB<jl; jB++) {
 				var nameA = ratingsArray[0][jA][0];
 				var nameB = ratingsArray[0][jB][0];
 				nameA = nameA.replace(/,/g,''); // strip commas
@@ -690,7 +684,7 @@ function extras_events_compareAll(el) {
 						sumSquareDiff += Math.pow(ratingA-ratingB,2) // max 16
 						commonFilmsCount++;
 
-						/*	
+						/*
 						// testing
 						if(nameA.indexOf('Emanuel Levy')>-1) {
 							if(nameB.indexOf('James Berardinelli')>-1) {
@@ -698,11 +692,11 @@ function extras_events_compareAll(el) {
 								if(title) {
 									title = title.replace(/,/g,''); // strip commas
 								}
-								theData += title + ',' + ratingsArray[i][jA][0] + ',' + ratingsArray[i][jB][0] + ',' + avgArray[i] + '\n';	
+								theData += title + ',' + ratingsArray[i][jA][0] + ',' + ratingsArray[i][jB][0] + ',' + avgArray[i] + '\n';
 							}
 						}
-						*/	
-	
+						*/
+
 					}
 				}
 
@@ -710,7 +704,7 @@ function extras_events_compareAll(el) {
 				var similarity = sumSquareDiff/commonFilmsCount; // average, max 16
 				similarity = Math.sqrt(similarity); // max 4
 				similarity = 1-(similarity/4); // %
-				if(commonFilmsCount>9) { 
+				if(commonFilmsCount>9) {
 					// only include pairings where data set is big enough
 					theData += nameA + ',' + nameB + ',' + commonFilmsCount + ',' + similarity + '\n';
 				}
@@ -722,7 +716,7 @@ function extras_events_compareAll(el) {
 }
 
 function extras_events_histograms(el) {
-	if(!$(el).attr('download')) { // no download link so do 
+	if(!$(el).attr('download')) { // no download link so do
 		var theData = 'critic name,critic link,1,2,3,4,5,\n';
 		for(var j=1, jl=ratingsArray[0].length; j<jl; j++) {
 			// for each critic
@@ -771,7 +765,7 @@ function extras_events_getPearsons(el) {
 		var jl=ratingsArray[0].length;
 		var il=ratingsArray.length;
 		for(var jA=1; jA<jl; jA++) { // factorially iterate critics
-			for(var jB=jA; jB<jl; jB++) { 
+			for(var jB=jA; jB<jl; jB++) {
 				var nameA = ratingsArray[0][jA][0];
 				var nameB = ratingsArray[0][jB][0];
 				tempArray[pairCount] = [];
@@ -785,7 +779,7 @@ function extras_events_getPearsons(el) {
 					var ratingA = widenRating(ratingsArray[i][jA][0],1,5);
 					var ratingB = widenRating(ratingsArray[i][jB][0],1,5);
 					if(ratingA && ratingB) { // if both critics rated this movie
-						if(ratingA>0 && ratingB>0) { 
+						if(ratingA>0 && ratingB>0) {
 							sumRatingsA += ratingA;
 							sumRatingsB += ratingB;
 							commonFilmsCount++;
@@ -795,7 +789,7 @@ function extras_events_getPearsons(el) {
 				var meanA = sumRatingsA/commonFilmsCount;
 				var meanB = sumRatingsB/commonFilmsCount;
 				// get sum of square of deviation from mean of each rating for criticA and critic B, and
-				// get sum of product of critic A deviation and critic B deviation				
+				// get sum of product of critic A deviation and critic B deviation
 				var sumSquareDevA = 0;
 				var sumSquareDevB = 0;
 				var sumProdDev = 0;
@@ -804,21 +798,21 @@ function extras_events_getPearsons(el) {
 					var ratingA = widenRating(ratingsArray[i][jA][0],1,5);
 					var ratingB = widenRating(ratingsArray[i][jB][0],1,5);
 					if(ratingA && ratingB) { // if both critics rated this movie
-						if(ratingA>0 && ratingB>0) { 
+						if(ratingA>0 && ratingB>0) {
 							var devA = ratingA - meanA;
 							var devB = ratingB - meanB;
 							sumSquareDevA += Math.pow(devA,2);
 							sumSquareDevB += Math.pow(devB,2);
-							sumProdDev += devA * devB;		
+							sumProdDev += devA * devB;
 							sumDiff += Math.abs(ratingA - ratingB);
-/*	
+/*
 							// testing
 							if(nameA.indexOf('Ali Gray')>-1) {
 								if(nameB.indexOf('Cole Smithey')>-1) {
-									theData += ',,,,,,' + ratingsArray[i][0][0] + ',' + ratingA + ',' + ratingB + '\n';	
+									theData += ',,,,,,' + ratingsArray[i][0][0] + ',' + ratingA + ',' + ratingB + '\n';
 								}
-							}	
-*/	
+							}
+*/
 						}
 					}
 				}
@@ -907,7 +901,7 @@ function ratingsArray_add_this_movie() {
 			var dY = pageFilmReleaseDate.substring(0,4);
 			var dM = (pageFilmReleaseDate.substring(5,7))-1;
 			var dD = pageFilmReleaseDate.substring(8,10);
-			var releaseDate = new Date(dY,dM,dD,0,0,0,0);	
+			var releaseDate = new Date(dY,dM,dD,0,0,0,0);
 			var today = new Date();
 			var lastWeekMS = today.getTime();
 			var lwDate = new Date();
@@ -928,7 +922,7 @@ function ratingsArray_add_this_movie() {
 		ratingsArray[pageFilmIndex][0][0] = pageFilmName;
 		ratingsArray[pageFilmIndex][0][1] = pageFilmPath;
 		ratingsArray[pageFilmIndex][0][2] = 0; // legacy
-	}	
+	}
 }
 
 function add_scrape_calls(calls,totalPages,path,index) {
@@ -950,7 +944,7 @@ function add_scrape_calls(calls,totalPages,path,index) {
 						if(!criticName) { criticName = '(unknown)'; }
 						if(!criticPath) { criticPath = ''; }
 				 		if(criticName.indexOf('Full Review')>-1) {
-				 			// this review comes from a publication rather than a critic 
+				 			// this review comes from a publication rather than a critic
 				 			criticName = $el.eq(y).find('.critic_name').find('em').eq(0).html();
 				 			criticPath = criticPath.substring(0,criticPath.indexOf('/',7));
 							if(!criticName) { criticName = '(unknown)'; }
@@ -970,16 +964,16 @@ function add_scrape_calls(calls,totalPages,path,index) {
 								ratingsArray[index][j] = criticRating;
 								newCritic = false;
 							}
-						}	
-						if(newCritic) {	
+						}
+						if(newCritic) {
 							var columns = ratingsArray[0].length;
 							// add new column to header row
 							ratingsArray[0][columns] = [];
 							ratingsArray[0][columns][0] = criticName;
 							ratingsArray[0][columns][1] = criticPath;
-							ratingsArray[0][columns][2] = 0; // legacy			
+							ratingsArray[0][columns][2] = 0; // legacy
 							ratingsArray[0][columns][3] = 0; // legacy
-							for(var i=1, il=ratingsArray.length; i<il; i++) { 
+							for(var i=1, il=ratingsArray.length; i<il; i++) {
 								// for each film row
 								// add new cell to end
 								ratingsArray[i][columns] = 0;
@@ -988,8 +982,8 @@ function add_scrape_calls(calls,totalPages,path,index) {
 							ratingsArray[index][columns] = criticRating;
 						}
 
-						var num = criticsArray.length; 
-						criticsArray[num] = [];	
+						var num = criticsArray.length;
+						criticsArray[num] = [];
 						criticsArray[num][0] = criticName;
 						criticsArray[num][1] = criticRating;
 						criticsArray[num][2] = reviewPath;
@@ -1032,7 +1026,7 @@ function criticsArray_add_existing() {
 }
 
 function criticsArray_update() {
-	// for each critic 
+	// for each critic
 	for(j=2,jl=ratingsArray[0].length; j<jl; j++) {
 		var count = 0;
 		var total = 0;
@@ -1072,16 +1066,16 @@ function criticsArray_update() {
 	avgScore = avgScore/criticsArray.length;
 	// calculate sort score using modified bayesian formula
 	for(y=0,yl=criticsArray.length; y<yl; y++) {
-		var count = Math.pow(criticsArray[y][4],3); 
+		var count = Math.pow(criticsArray[y][4],3);
 		var score = criticsArray[y][5];
 		// 6 = baysian sort score
 		// user power of 3 causes low count critics to score worse
-		// the original bayes formula I modified:  
+		// the original bayes formula I modified:
 		// http://www.andymoore.ca/2010/02/bayesian-ratings-your-salvation-for-user-generated-content
 		criticsArray[y][6] = ( (avgCount * avgScore) + (count * score) ) / (avgCount + count);
 		// news move critics with low count & low score to the bottom
 		if(Math.pow(count,3)<avgCount) {
-			criticsArray[y][6] = criticsArray[y][6]/10; 
+			criticsArray[y][6] = criticsArray[y][6]/10;
 		}
 	}
 	// now sort criticsArray decending based on baysian score
@@ -1089,14 +1083,14 @@ function criticsArray_update() {
 		var aSort = a[6];
 		var bSort = b[6];
 		return bSort-aSort;
-	});	
+	});
 }
 
 function criticsArray_compareRatings(filmIndex, aCriticIndex, bCriticIndex) {
 	var float = 0;
 	var cR = ratingsArray[filmIndex][aCriticIndex];
 	var uR = ratingsArray[filmIndex][bCriticIndex];
-	// widen scale so that "very bad" & "bad" 
+	// widen scale so that "very bad" & "bad"
 	// are more similar than "bad" & "okay", etc.
 	cR = criticsArray_widenRating(cR,1,5);
 	uR = criticsArray_widenRating(uR,1,5);
@@ -1108,17 +1102,17 @@ function criticsArray_compareRatings(filmIndex, aCriticIndex, bCriticIndex) {
 }
 
 function criticsArray_widenRating(num,lowest,highest) {
-	// widends distance of value from center point 
+	// widends distance of value from center point
 	// between lowest and highest possible values
-	// the effect is that a 1 vs. 2 star ratings pair 
-	// (i.e. "very bad" vs. "bad") is considered more 
+	// the effect is that a 1 vs. 2 star ratings pair
+	// (i.e. "very bad" vs. "bad") is considered more
 	// similar than a 2 vs. 3 star ratings pair
 	// (i.e. "bad" vs. "okay")
 	//	*   *   *   *   *   *   *   *   *
 	//	* *   *   *     *     *   *   * *
 	//	**  *    *      *      *    *  **
 	num = parseFloat(num);
-	if(isNaN(num) || num<lowest || num>highest) { 
+	if(isNaN(num) || num<lowest || num>highest) {
 		// sanitize, convert bad ratings to unrated
 		return 0;
 	} else {
@@ -1133,7 +1127,7 @@ function criticsArray_widenRating(num,lowest,highest) {
 			num = (Math.pow(num,2))/highest;
 			num = highest-num;
 		}
-		num = num+lowest;	
+		num = num+lowest;
 		return num;
 	}
 }
@@ -1185,7 +1179,7 @@ function firstRun_check() {
 				firstRun_selectModal(hasRatings,ratingsArePublic);
 			}).error(function(xhr, ajaxOptions, thrownError){
 				firstRun_selectModal(hasRatings,ratingsArePublic);
-			});	
+			});
 		} else {
 			firstRun_showModal('requestLogin');
 		}
@@ -1258,7 +1252,7 @@ function firstRun_showModal(modalType) {
 	} else if(modalType == 'requestLogin') {
 
 		$('#hrt_modalInner').append($('<span>', { text: 'To begin, you\'ll need to sign into your account (but this app never sees your email address or password).', class: 'instruction' }));
-		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Sign in', id: 'firstRun_button_signIn', class: 'button' }));	
+		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Sign in', id: 'firstRun_button_signIn', class: 'button' }));
 		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Skip import', id: 'firstRun_button_dismissFirstRun', class: 'button' }));
 
 	} else if(modalType == 'importing') {
@@ -1302,7 +1296,7 @@ function firstRun_showModal(modalType) {
 
 	}
 	positionModal(450);
-	firstRun_assignEvents();	
+	firstRun_assignEvents();
 }
 
 function positionModal(modalWidth) {
@@ -1312,7 +1306,7 @@ function positionModal(modalWidth) {
 	$('#hrt_modalClickZone').css('width',docWidth + 'px');
 	var x = parseInt((docWidth-modalWidth)/2);
 	var y = parseInt((docHeight-$('#hrt_modal').height())/2);
-	$('#hrt_modal').css('top',y + 'px'); 
+	$('#hrt_modal').css('top',y + 'px');
 	$('#hrt_modal').css('left',x + 'px');
 }
 
@@ -1339,10 +1333,10 @@ function firstRun_assignEvents() {
 		var eventObj = document.createEvent('MouseEvents');
 		eventObj.initMouseEvent( 'click', true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null );
 		el[0].dispatchEvent(eventObj);
-		// if user logs in via email, 
+		// if user logs in via email,
 		// page will reload and check firstRun
-		// if user logs in via Facebook, 
-		// no reload, so check firstRun periodically 
+		// if user logs in via Facebook,
+		// no reload, so check firstRun periodically
 		var fbTimer = setInterval(function() {
 			var loggedIn = firstRun_userIDRT();
 			if(loggedIn) {
@@ -1415,7 +1409,7 @@ function firstRun_setPrivacy(val) {
 			if($(el).attr('value').indexOf(val)>-1) {
 				$(el).attr('checked','checked');
 			} else {
-				$(el).removeAttr('checked');				
+				$(el).removeAttr('checked');
 			}
 		}
 	}
@@ -1489,7 +1483,7 @@ function firstRun_importUserRatings() {
 		$('#hrt_modal').remove();
 		$('#hrt_modalClickZone').remove();
 		firstRun_showModal(error);
-	});	
+	});
 }
 
 function firstRun_scrape_critic_ratings() {
@@ -1535,7 +1529,7 @@ function firstRun_scrape_critic_ratings() {
 		);
 	}
 
-	// concurrently execute the totalPages calls 
+	// concurrently execute the totalPages calls
 	$.when.apply(null, frCallsTotalPages).done(function() {
 		frImportMessage = 'Found your ratings for ' + frMoviesCount + ' movies previously unknown to this app.  Now importing every critics\'s rating of each movie.' ;
 		// may have been set by earlier if this is a movie page
@@ -1563,7 +1557,7 @@ function firstRun_scrape_critic_ratings() {
 				messagePort.postMessage({firstRun: firstRun });
 			});
 
-			if($(scorePanel).length>0 && location.pathname.indexOf('/tv/')<0) { 
+			if($(scorePanel).length>0 && location.pathname.indexOf('/tv/')<0) {
 				// this is a movie listing
 				criticsArray_update();
 				update_critics_widget();
@@ -1638,17 +1632,17 @@ function update_critics_widget() {
 		}
 	}
 	if(totalUserRatings<1) {
-		$('#critics_filter').css('display','none');	
+		$('#critics_filter').css('display','none');
 		txt += '<div class="noratings">';
 		txt += 'Thanks for installing the Heirloom Rotten Tomatoes app! This space is empty because you haven\'t used the app to rate any movies yet. To get started, you can <a href="#" id="noratings_import">import past ratings</a> from your Rotten Tomatoes account or start ratings movies now.  Just search for a recent movie that you loved and click on one of the stars next to "YOUR RATING" above. <br><br>If you are not logged-in, Rotten Tomatoes will display a login pop-up.';
 		txt += '</div>';
 	} else if(totalUserRatings<2) {
-		$('#critics_filter').css('display','none');	
+		$('#critics_filter').css('display','none');
 		txt += '<div class="noratings">';
-		txt += 'Great! Now just rate just one more movie to see the list of critics ordered by their similarity to you. The more movies you rate, the more accurate the list will become. For fastest results, start by rating a few movies that critics loved but you hated (or visa versa).';	
+		txt += 'Great! Now just rate just one more movie to see the list of critics ordered by their similarity to you. The more movies you rate, the more accurate the list will become. For fastest results, start by rating a few movies that critics loved but you hated (or visa versa).';
 		txt += '</div>';
 	} else {
-		$('#critics_title').css('display','block');	
+		$('#critics_title').css('display','block');
 		$('#critics_filter').css('display','block');
 		$('#critics_rows').addClass('cr_empty');
 		$('#critics_rows').addClass('cr_filled');
@@ -1657,21 +1651,21 @@ function update_critics_widget() {
 			var rated = '';
 			var tinyMeter = '';
 			if(pageFilmIndex>0) { // film page
-				if(critic[1] == 0) { 
+				if(critic[1] == 0) {
 					rated = ' unrated';
-				} else if(critic[1]>2.9) { 
+				} else if(critic[1]>2.9) {
 					tinyMeter = ' fresh';
 				} else if(critic[1]<=2.9) {
 					tinyMeter = ' rotten';
 				}
 			}
 			var similarity = ' ful';
-			if(critic[5] < 0.5) { 	
-				similarity = ' non' 
-			} else if(critic[5]<0.6) { 
-				similarity = ' low' 
-			} else if(critic[5]<0.7) { 
-				similarity = ' med' 
+			if(critic[5] < 0.5) {
+				similarity = ' non'
+			} else if(critic[5]<0.6) {
+				similarity = ' low'
+			} else if(critic[5]<0.7) {
+				similarity = ' med'
 			}
 			var blurb = '<i>(hasn\'t written a review for this movie)</i>';
 			if(critic[3] != '') {
@@ -1715,7 +1709,7 @@ function update_meter_widget() {
 	var freshCount = 0; // critics who rated this fresh - count
 	var sortTotal = 0; // all critics - total of sort scores
 	var ratingsTotal = 0; // all critics - total of ratings
-	var avgFreshness = 0; // weighted % critics who rated this fresh 
+	var avgFreshness = 0; // weighted % critics who rated this fresh
 	var avgRating = 0; // all critics - average rating
 	// calculate smart freshness
 	// cycle through critics
@@ -1726,13 +1720,13 @@ function update_meter_widget() {
 			var sortScore = criticsArray[x][6];
 			if(sortScore>0) {
 				sortScore = Math.pow(sortScore,10); // very heavily weighting the most similar critics
-			} else {	
-				sortScore = Math.pow(sortScore,10) * -1; 
+			} else {
+				sortScore = Math.pow(sortScore,10) * -1;
 			}
 			var rating = parseFloat(criticsArray[x][1]);
 			// rated fresh?
-			if(rating>2.9) { 
-				freshTotal += sortScore; 
+			if(rating>2.9) {
+				freshTotal += sortScore;
 				freshCount++;
 			}
 			sortTotal += sortScore;
@@ -1752,7 +1746,7 @@ function update_meter_widget() {
 	if(!isNaN(parseInt(avgFreshness))) {
 		txt = Math.round((avgFreshness)*100).toString();
 	} else {
-		txt = '?';	
+		txt = '?';
 	}
 	var el = $('#heirloom-critics-numbers');
 	$(el).find('.meter-value').find('span').html(txt);
@@ -1784,8 +1778,8 @@ function update_distribution_widget() {
 			var sortScore = criticsArray[x][6]*100; // [6] is baysian score
 			if(sortScore>0) {
 				sortScore = Math.pow(sortScore,10); // very heavily weighting the most similar critics
-			} else {	
-				sortScore = Math.pow(sortScore,10) * -1; 
+			} else {
+				sortScore = Math.pow(sortScore,10) * -1;
 			}
 			var rating = parseFloat(criticsArray[x][1]);
 			rating = parseInt(Math.round(rating-1));
@@ -1823,51 +1817,51 @@ function sanitize_rating(el) {
 		} else {
 			// letter ratings
 			switch(fraction[0]) {
-				case 'A+': 
+				case 'A+':
 					rating = 5;
 	        		break;
-				case 'A': 
+				case 'A':
 					rating = 5;
 	        		break;
-				case 'A-': 
+				case 'A-':
 					rating = 4.5;
-	        		break;			
-				case 'B+': 
+	        		break;
+				case 'B+':
 					rating = 4.5;
-	        		break;			
-				case 'B': 
+	        		break;
+				case 'B':
 					rating = 4;
-	        		break;			
-				case 'B-': 
+	        		break;
+				case 'B-':
 					rating = 3.5;
-	        		break;			
-				case 'C+': 
+	        		break;
+				case 'C+':
 					rating = 3.5;
-	        		break;			
-				case 'C': 
+	        		break;
+				case 'C':
 					rating = 3;
-	        		break;			
-				case 'C-': 
+	        		break;
+				case 'C-':
 					rating = 2.5;
-	        		break;			
-				case 'D+': 
+	        		break;
+				case 'D+':
 					rating = 2.5;
-					break;			
-				case 'D': 
+					break;
+				case 'D':
 					rating = 2;
-	        		break;			
-				case 'D-': 
+	        		break;
+				case 'D-':
 					rating = 1.5;
-	        		break;			
-				case 'F+': 
+	        		break;
+				case 'F+':
 					rating = 1.5;
-	        		break;			
-				case 'F': 
+	        		break;
+				case 'F':
 					rating = 1;
-	        		break;			
-				case 'F-': 
+	        		break;
+				case 'F-':
 					rating = 1;
-	        		break;			
+	        		break;
 			}
 		}
 	} else {
@@ -1877,7 +1871,7 @@ function sanitize_rating(el) {
 			rating = 4; // "fresh" = "good" not "best"
 		} else {
 			rating = 2; // "rotten" = "bad" not "worst"
-		}			
+		}
 	}
 	return rating;
 }
@@ -1921,7 +1915,7 @@ function erase_data() {
 			location.reload();
 		});
 	} else {
-		alert('You didn\'t type "ok", so data was NOT erased.');	
+		alert('You didn\'t type "ok", so data was NOT erased.');
 	}
 }
 
@@ -1933,7 +1927,7 @@ function export_data(theData,name,mime,el) {
 		dirReader.readEntries(function(entries) {
 			for (var i = 0, entry; entry = entries[i]; ++i) {
 				if (entry.name==name) {
-					entry.remove(function() {	
+					entry.remove(function() {
 						createTheFile(fs,theData,name,mime,el);
 						created = true;
 					}, exportErrorHandler);
@@ -1942,8 +1936,8 @@ function export_data(theData,name,mime,el) {
 			if(!created) {
 				createTheFile(fs,theData,name,mime,el);
 			}
-		}, exportErrorHandler);        
-	}, exportErrorHandler);      
+		}, exportErrorHandler);
+	}, exportErrorHandler);
 }
 
 function createTheFile(fs,theData,name,mime,el) {
@@ -1958,11 +1952,11 @@ function createTheFile(fs,theData,name,mime,el) {
 				// simulate click
 				var eventObj = document.createEvent('MouseEvents');
 				eventObj.initMouseEvent( 'click', true, true, window, 1, 0, 0, 0, 0, false, false, true, false, 0, null );
-				el.dispatchEvent(eventObj);					
+				el.dispatchEvent(eventObj);
 			}, false);
 		fileWriter.write(blob);
 		}, exportErrorHandler);
-	}, exportErrorHandler); 
+	}, exportErrorHandler);
 }
 
 function exportErrorHandler(e) {
@@ -2041,7 +2035,7 @@ function readCookie(name) {
 
 
 
-/* 
+/*
 
 ratingsArray structure
 
@@ -2055,17 +2049,17 @@ ratingsArray structure
 				2 = (unused)
 				3 = (unused)
 
-	ratingsArray[i] = subsequent rows: movie ratings 
-		ratingsArray[i][0] = first column: movie info 
-			ratingsArray[i][0][k] = 
+	ratingsArray[i] = subsequent rows: movie ratings
+		ratingsArray[i][0] = first column: movie info
+			ratingsArray[i][0][k] =
 				0 = film name
 				1 = film path
 				2 = (unused)
 
-		ratingsArray[i][1] = second column: user's ratings 
-		ratingsArray[i][j] = subsequent columns: critics' ratings 
+		ratingsArray[i][1] = second column: user's ratings
+		ratingsArray[i][j] = subsequent columns: critics' ratings
 			ratingsArray[i][j] = rating of this film
-	
+
 criticsArray structure
 
 	criticsArray[y] = each row:  a critic
