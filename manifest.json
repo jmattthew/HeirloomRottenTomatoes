@@ -1,10 +1,27 @@
 {
 	"manifest_version": 2,
 	"name": "Heirloom Rotten Tomatoes",
-	"version": "2.2.6",
+	"version": "3.0.0",
   	"description": "Enhance Rotten Tomatoes! Find the critics who are most like you.",
+	"page_action": {
+		"default_icon": {
+			"16": "images/icon16.png",
+			"24": "images/icon24.png",
+			"32": "images/icon32.png",
+			"48": "images/icon48.png",
+			"64": "images/icon64.png",
+			"128": "images/icon128.png"
+		},
+		"default_title": "Heirloom Rotten Tomatoes",
+		"default_popup": "pageaction.html"
+	},
 	"icons": {
-		"48": "icon.png"
+		"16": "images/icon16.png",
+		"24": "images/icon24.png",
+		"32": "images/icon32.png",
+		"48": "images/icon48.png",
+		"64": "images/icon64.png",
+		"128": "images/icon128.png"
 	},
 	"background": {
 		"scripts": [
@@ -21,21 +38,22 @@
 				"styles.css"
 			],
 			"js": [
-				"jquery-1.11.1.min.js",
+				"jquery-3.2.1.min.js",
 				"script.js" ]
 		}
 	],
 	"web_accessible_resources": [
-		"images/distribution_bg.png",
 		"images/star_rate.png",
 		"images/star_rate_bg.png",
-		"images/heart_sprite.png",
+		"images/histogram_bg.png",
+		"images/meter_sprite.png",
 		"images/tiny_meter.png",
-		"images/tipRight.png"
+		"images/heart_sprite.png"
 	],
 	"permissions": [
 		"storage",
-		"background"
+		"background",
+		"declarativeContent"
 	],
-	"content_security_policy": "script-src 'self' https://ssl.google-analytics.com; object-src 'self'"
+	"content_security_policy": "script-src 'self' https://www.google-analytics.com; object-src 'self'"
 }

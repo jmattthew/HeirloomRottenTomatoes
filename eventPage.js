@@ -6,14 +6,17 @@
 /////////////////////////
 
 var storage = chrome.storage.local;
-var epRatingsArray = new Array();
+var epRatingsArray = new Array(); // the eventPages' copy of ratingsArray
 var dataReady = false;
 var sessionLogged = false;
 var firstRun = '';
 // when storage methods change, this variable
 // allows some older versions to be detected and fixed
-var dataVersion = 5; 
+var dataVersion = 6;
 var appVersion = chrome.runtime.getManifest().version;
+var previousVersion = appVersion;
+
+
 
 
 
@@ -28,23 +31,63 @@ var appVersion = chrome.runtime.getManifest().version;
 //                     //
 /////////////////////////
 
+// When the extension is installed or upgraded ...
+chrome.runtime.onInstalled.addListener(function(details) {
+	if(details.reason == "update"){
+		// show the update message
+		previousVersion = details.previousVersion;
+	}
+	chrome.declarativeContent.onPageChanged.removeRules(undefined, function() {
+		chrome.declarativeContent.onPageChanged.addRules([
+			{
+				conditions: [
+					new chrome.declarativeContent.PageStateMatcher({
+						pageUrl: { urlContains: 'rottentomatoes.com' },
+					})
+				],
+				actions: [
+					new chrome.declarativeContent.ShowPageAction()
+				]
+			}
+		]);
+	});
+});
+
+
 // insert Google Analytics
-var _gaq = _gaq || [];
-_gaq.push(['_setAccount', 'UA-56019471-1']);
-_gaq.push(['_trackPageview']);
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga'); // Note: https protocol here
 
-(function() {
-  var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-  ga.src = 'https://ssl.google-analytics.com/ga.js';
-  var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-})();
+ga('create', 'UA-56019471-1', 'auto');
+ga('set', 'checkProtocolTask', function(){}); // Removes failing protocol check. @see: http://stackoverflow.com/a/22152353/1958200
+ga('require', 'displayfeatures');
+ga('send', 'pageview', '/pageaction.html');
+/*
+// syntax for sending events
+ga('send', {
+  hitType: 'event',
+  eventCategory: 'object interacted with',
+  eventAction: 'type of interaction',
+  eventLabel: 'further categorize',
+  eventValue: 'numeric value of interaction'
+});
+*/
 
-// push data version to analytics
-_gaq.push(['_trackEvent', 'app data', 'installed version', appVersion]);
-console.log('app version: ' + appVersion);
+
+// send data version to analytics
+ga('send', {
+  hitType: 'event',
+  eventCategory: 'eventPage',
+  eventAction: 'eventPage loaded',
+  eventLabel: 'installed version',
+  eventValue: appVersion
+});
+console.log('app version sent to gA: ' + appVersion);
 
 
-// getting storage from the persistent eventPage 
+// getting storage for the eventPage (ratings & firstRun)
 // so that it only needs to be retreived once per session
 // note:  storage call is asychronous
 storage.get(['ratings','firstRun'], function(items) {
@@ -67,8 +110,9 @@ chrome.runtime.onConnect.addListener(function(messagePort) {
 		// listen for readiness message from the content script
 		// and deliver the firstRun status
 		if(msg.status == 'sendFirstRun') {
-			messagePort.postMessage({firstRun: firstRun});
-			console.log('firstRun sent to content script');	
+			console.log('firstRun requested');
+			messagePort.postMessage({firstRun: [firstRun,previousVersion]});
+			console.log('firstRun sent to content script');
 		}
 		// deliver data when firstRun response received
 		if(msg.status == 'sendRatingsArray' && dataReady) {
@@ -76,7 +120,7 @@ chrome.runtime.onConnect.addListener(function(messagePort) {
 			console.log('epRatingsArray sent to content script');
 		}
 		// content script saved ratingsArray so
-		// update eventPages copy 
+		// update eventPages's copy
 		if(msg.ratingsData && dataReady) {
 			epRatingsArray = msg.ratingsData;
 			if(epRatingsArray.length<1) {
@@ -86,23 +130,66 @@ chrome.runtime.onConnect.addListener(function(messagePort) {
 			}
 		}
 		// content script saved firstRun so
-		// update firstRun here 
+		// update firstRun here
 		if(msg.firstRun) {
-			firstRun = msg.firstRun;
-			console.log(firstRun);
-			_gaq.push(['_trackEvent', 'app data', 'import', firstRun]);
+			firstRun = msg.firstRun[0];
+			ga('send', {
+			  hitType: 'event',
+			  eventCategory: 'firstRun',
+			  eventAction: 'import',
+			  eventLabel: firstRun[0],
+			  eventValue: firstRun[1]
+			});
+			console.log('firstRun data sent to gA');
+			console.log('firstRun: ' + firstRun[0] + ':' + firstRun[1]);
 		}
-		// push name and rank of top 10 critics to gAnalytics 
-		// (10 because trackEvent throttles to 1/sec. after 10 pushes)
+		// push name and rank of top 5 critics to gA
 		if(msg.criticsData && !sessionLogged) {
 			sessionLogged = true;
 			var critics = msg.criticsData;
-			for(var x=0, xl=critics.length; (x<xl) && (x<10); x++) {
+			for(var x=0, xl=critics.length; (x<xl) && (x<5); x++) {
 				var cName = critics[x][0];
-				var cRank = Math.round(critics[x][6]*10000);
-				_gaq.push(['_trackEvent', 'critics', 'rank', cName, cRank]);
+				var cSimilarity = Math.round(critics[x][7]*10000);
+				var cCount = critics[x][6];
+				ga('send', {
+				  hitType: 'event',
+				  eventCategory: 'critics',
+				  eventAction: cName,
+				  eventLabel: cSimilarity,
+				  eventValue: cCount
+				});
 			}
-			console.log('critics data sent to Google Analytics');
+			console.log('critics data sent to gA');
+		}
+		// push name of favorited critics to gA
+		if(msg.favorited) {
+			ga('send', {
+			  hitType: 'event',
+			  eventCategory: 'critics',
+			  eventAction: 'favorited',
+			  eventLabel: msg.favorited
+			});
+			console.log('favorited data sent to gA: ' + msg.favorited);
+		}
+		// push about modal event to gA
+		if(msg.aboutModal) {
+			ga('send', {
+			  hitType: 'event',
+			  eventCategory: 'about modal',
+			  eventAction: msg.aboutModal,
+			  eventLabel: msg.aboutModal
+			});
+			console.log('about modal data sent to gA: ' + msg.aboutModal);
+		}
+		// push name of noteworthy films to gA
+		if(msg.noteworthy) {
+			ga('send', {
+			  hitType: 'event',
+			  eventCategory: 'films',
+			  eventAction: msg.noteworthy[0],
+			  eventLabel: msg.noteworthy[1]
+			});
+			console.log('noteworthy film data sent to gA: ' + msg.noteworthy);
 		}
 	});
 });
@@ -126,7 +213,7 @@ function epRatingsArray_create(storageData) {
 	var validData = false;
 	if(storageData) { // data exists
 		if(storageData.length>0) { // it's an array
-			if(storageData[0].length>0) { // we a "column"
+			if(storageData[0].length>0) { // row has a "column"
 				if(storageData[0][0].length>0) { // 1st cell has an array
 					if(storageData[0][0][0]) { // that array has data
 						epRatingsArray = storageData;
@@ -137,15 +224,17 @@ function epRatingsArray_create(storageData) {
 		}
 	}
 	if(validData) {
+		console.log('storage data is valid');
 		epRatingsArray_fix_legacy();
 	} else {
+		console.log('no valid data from storage');
 		// no valid data, so construct fresh Array
 		epRatingsArray = new Array();
 		// header row
 		epRatingsArray[0] = new Array();
 			// header "column"
 			epRatingsArray[0][0] = new Array();
-				epRatingsArray[0][0][0] = dataVersion; 
+				epRatingsArray[0][0][0] = dataVersion;
 			// first critic column (user)
 			epRatingsArray[0][1] = new Array();
 				epRatingsArray[0][1][0] = 'you'; // critic name
@@ -157,16 +246,17 @@ function epRatingsArray_create(storageData) {
 
 function epRatingsArray_fix_legacy() {
 	var wasLegacy = false;
-	if(epRatingsArray[0][0][0] < 4) { 
-		// fix really old buggy versions
-		for(var i=0, il=epRatingsArray.length; i<il; i++) { // 
+	if(epRatingsArray[0][0][0] < 4) {
+		// versions <= 3 or really buggy
+		// probably noone still has one, but anywho:
+		for(var i=0, il=epRatingsArray.length; i<il; i++) { //
 			// check for fouled up rows
 			if(epRatingsArray[i]) {
 				for(var j=0, jl=epRatingsArray[i].length; j<jl; j++) {
 					// check for foulded up "cells"
 					if(epRatingsArray[i][j]) {
 					} else {
-						epRatingsArray[i][j] = new Array();	
+						epRatingsArray[i][j] = new Array();
 					}
 				}
 			} else {
@@ -188,7 +278,7 @@ function epRatingsArray_fix_legacy() {
 				// delete column
 				for(var i=0, il=epRatingsArray.length; i<il; i++) {
 					epRatingsArray[i].splice(j,1);
-				}			
+				}
 			}
 		}
 		// an older version incorrectly calculated comparison score
@@ -205,8 +295,8 @@ function epRatingsArray_fix_legacy() {
 	}
 	if(epRatingsArray[0][0][0] < 5) {
 		// version 4 saved paths to critic reviews
-		// but that takes up too much storage space 
-		// 5 also saves space on the critic path
+		// but that takes up too much storage space
+		// 5 also removes '/critic/' from the critic path to save space
 		for(var i=0, il=epRatingsArray.length; i<il; i++) {
 			for(var j=1, jl=epRatingsArray[0].length; j<jl; j++) {
 				if(i==0) {
@@ -241,9 +331,21 @@ function epRatingsArray_fix_legacy() {
 		}
 		wasLegacy = true;
 	}
+	if(epRatingsArray[0][0][0] < 6) {
+		// version 6 adds the top critic flag, but nothing needs to be done about that
+		// version 6 also adds back '/critic/' to solve bug where
+		// publications links were broken.  Can't fix those links, but they will be
+		// overwritten in time
+		for(var j=1, jl=epRatingsArray[0].length; j<jl; j++) {
+			epRatingsArray[0][j][1] = '/critic/' + epRatingsArray[0][j][1];
+		}
+		wasLegacy = true;
+	}
+
+	wasLegacy = true;
 	if(wasLegacy) {
-		epRatingsArray[0][0][0] = dataVersion; 
-		save_to_storage();		
+		epRatingsArray[0][0][0] = dataVersion;
+		storage.set({'ratings': epRatingsArray}, function() {
+		});
 	}
 }
-
