@@ -238,7 +238,7 @@ messagePort.onMessage.addListener(function(msg) {
 	}
 	if(msg.data) {
 		ratingsArray = msg.data;
-		firstRun_check();
+		firstRun_check(true);
 		if($(elScorePanel).length>0 && location.pathname.indexOf('/tv/')<0 && $(elPageFilmName).length>0) {
 			// this is a movie listing
 			fix_annoying_header();
@@ -695,7 +695,7 @@ function add_critics_widget_events() {
 	$('#hrt_noratings_import').click(function(event) {
 		firstRun = 'firstRun';
 		messagePort.postMessage({ firstRun: [firstRun,null] });
-		firstRun_check();
+		firstRun_check(false);
 		return false;
 	});
 }
@@ -979,7 +979,7 @@ function show_about_modal() {
 		$('BODY').off('keyup');
 		firstRun = 'firstRun';
 		messagePort.postMessage({ firstRun: [firstRun,null] });
-		firstRun_check();
+		firstRun_check(false);
 		return false;
 	});
 
@@ -1550,40 +1550,39 @@ function criticsArray_widenRating(num,lowest,highest) {
 
 
 
-function firstRun_check() {
+function firstRun_check(doWait) {
 	firstRun += ' ';
 	if(firstRun.indexOf('firstRun')>-1) {
 		if($(userRatingsLink)[0] instanceof Node) {
-			// is logged in
+			// user is logged in
 			firstRun_afterLogin();
 		} else {
-			// may or may not be logged in
-			// RT doesn't pull in user login status
-			// until well after the page loads,
-			// so we have to listen for it
-			var observer2 = new MutationObserver(function(mutations, observer) {
-				if($(userRatingsLink)[0] instanceof Node) {
-					firstRun_afterLogin();
-					clearTimeout(loginTimer);
-					observer2.disconnect();
-				} else {
-					loginTimer = setTimeout(function(){
-						// the first time the header is mutated
-						// it won't contain the user account info
-						// but if the user is logged out, it'll never
-						// contain their account info.  So, we'll
-						// wait a bit then give up.
-						$('#hrt_modal').remove();
-						firstRun_showModal('requestLogin');
+			if(doWait) {
+	 			// RT doesn't pull in user login status
+				// until well after the page loads,
+				// so we have to listen for it
+				var observer2 = new MutationObserver(function(mutations, observer) {
+					if($(userRatingsLink)[0] instanceof Node) {
+						firstRun_afterLogin();
+						clearTimeout(loginTimer);
 						observer2.disconnect();
-					},10000);
-				}
-			});
-			var observationTarget = $(userLoginArea)[0];
-			observer2.observe(observationTarget, {
-				childList: true,
-				subtree: true
-			});
+					}
+				});
+				var observationTarget = $(userLoginArea)[0];
+				observer2.observe(observationTarget, {
+					childList: true,
+					subtree: true
+				});
+				// wait a bit to see if the mutation occurs, then give up
+				loginTimer = setTimeout(function(){
+					$('#hrt_modal').remove();
+					firstRun_showModal('requestLogin');
+					observer2.disconnect();
+				},10000);
+			} else {
+				// assume logged out and don't wait for confirmation
+				firstRun_showModal('requestLogin');
+			}
 		}
 	}
 }
@@ -1765,9 +1764,15 @@ function firstRun_assignEvents() {
 		// simulate click
 		var el = $(loginLinkRT);
 		var eventObj = document.createEvent('MouseEvents');
-		eventObj.initMouseEvent( 'click', true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null );
-		el[0].dispatchEvent(eventObj);
-		firstRun_check();
+		var event = new MouseEvent('click', {
+			'view': window,
+			'bubbles': true,
+			'cancelable': true,
+			'button': 0,
+			'relatedTarget': null
+		});
+		el[0].dispatchEvent(event);
+		firstRun_check(true);
 		return false;
 	});
 
@@ -1841,8 +1846,14 @@ function firstRun_setPrivacy(val) {
 	// I don't know why, but jquery .submit() doesn't work
 	var submitButton = $(inputs).eq(0).parent().find('button');
 	var eventObj = document.createEvent('MouseEvents');
-	eventObj.initMouseEvent( 'click', true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null );
-	submitButton[0].dispatchEvent(eventObj);
+		var event = new MouseEvent('click', {
+			'view': window,
+			'bubbles': true,
+			'cancelable': true,
+			'button': 0,
+			'relatedTarget': null
+		});
+	submitButton[0].dispatchEvent(event);
 }
 
 function firstRun_getPrivacySetting() {
@@ -2518,8 +2529,14 @@ function createTheFile(fs,theData,name,mime,el) {
 				$(el).attr('download',name);
 				// simulate click
 				var eventObj = document.createEvent('MouseEvents');
-				eventObj.initMouseEvent( 'click', true, true, window, 1, 0, 0, 0, 0, false, false, true, false, 0, null );
-				el.dispatchEvent(eventObj);
+				var event = new MouseEvent('click', {
+					'view': window,
+					'bubbles': true,
+					'cancelable': true,
+					'button': 0,
+					'relatedTarget': null
+				});
+				el.dispatchEvent(event);
 			}, false);
 		fileWriter.write(blob);
 		}, exportErrorHandler);
