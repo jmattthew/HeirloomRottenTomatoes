@@ -2265,10 +2265,13 @@ function update_tomatometer() {
 	}
 	// middling
 	// close ratio of good and bad, but a high % of neutral compared to good+great
-	if( allHistWeighted[1]/allHistWeighted[3] <= 1.25 && allHistWeighted[1]/allHistWeighted[3] >= 0.8 && allHistWeighted[2]/(allHistWeighted[3]+allHistWeighted[4]) > 0.7 ) {
+	// OR high ratio % of neutral compared to any other column
+	if( ( allHistWeighted[1]/allHistWeighted[3] <= 1.25 && allHistWeighted[1]/allHistWeighted[3] >= 0.8 && allHistWeighted[2]/(allHistWeighted[3]+allHistWeighted[4]) > 0.7 ) ||
+		( Math.max(allHistWeighted[0],allHistWeighted[1],allHistWeighted[3],allHistWeighted[4])/allHistWeighted[2] <= 0.5 ) ) {
 		allScoreIcon = 'hrt_middling';
 	}
-	if( topHist[1]/topHist[3] <= 1.25 && topHist[1]/topHist[3] >= 0.8 && topHist[2]/(topHist[3]+topHist[4]) > 0.7 ) {
+	if( ( topHist[1]/topHist[3] <= 1.25 && topHist[1]/topHist[3] >= 0.8 && topHist[2]/(topHist[3]+topHist[4]) > 0.7 ) ||
+		( Math.max(topHist[0],topHist[1],topHist[3],topHist[4])/topHist[2] <= 0.5 ) ) {
 		topScoreIcon = 'hrt_middling';
 	}
 	// controversial
