@@ -842,22 +842,17 @@ function show_about_modal() {
 	$('#hrt_modalInner').append($('<strong>', { text: 'Thanks for Using Heirloom Rotten Tomatoes - Version ' + appVersion + '!', style: 'text-align:center; padding-bottom:10px;' }));
 	$('#hrt_modalInner').append($('<span>', { text: 'To report an problem or to make a nice comment, tweet ' }));
 	$('#hrt_modalInner').find('span:last').append($('<a>', { href: 'https://twitter.com/messages/compose?recipient_id=3084491', target: '_blank', text: '@mattthew' }));
-	$('#hrt_modalInner').append($('<strong>', { text: 'Your ratings keep this project alive!' }));
+	$('#hrt_modalInner').append($('<strong>', { text: 'Your reviews keep this project alive!' }));
 	$('#hrt_modalInner').append($('<span>', { text: 'This free app is an open-source, fan supported, labor of love. To show your support, please ' }));
-	$('#hrt_modalInner').find('span:last').append($('<a>', { href: 'https://chrome.google.com/webstore/detail/heirloom-rotten-tomatoes/ckmbpodfggiamhcmpilepdccpdnpfofd/reviews', target: '_blank', text: 'add a rating' }));
+	$('#hrt_modalInner').find('span:last').append($('<a>', { href: 'https://chrome.google.com/webstore/detail/heirloom-rotten-tomatoes/ckmbpodfggiamhcmpilepdccpdnpfofd/reviews', target: '_blank', text: 'add a review' }));
 	$('#hrt_modalInner').find('span:last').append('. Thanks! ');
 	$('#hrt_modalInner').find('span:last').append(' Neither this browser app nor it\'s developer are affiliated with or supported by Rotten Tomatoes in any way.');
 	$('#hrt_modalInner').append($('<strong>', { text: 'Import ratings from your account:' }));
 	$('#hrt_modalInner').append($('<span>', { text: 'If you\'ve rated any movies on Rotten Tomatoes before installing this app, ' }));
 	$('#hrt_modalInner').find('span:last').append($('<a>', { href: '#', text: 'import your ratings now', id: 'hrt_import_ratings' }));
 	$('#hrt_modalInner').find('span:last').append(' to improve the accuracy of the app.');
-	$('#hrt_modalInner').append($('<strong>', { text: 'Summary of your movie ratings:' }));
-	$('#hrt_modalInner').append($('<span>', { id: 'hrt_ratings_table' }));
-	$('#hrt_modalInner').append($('<span>', { text: 'Positivity: 0% means that you gave every movie a 1 star; rating, while 100% means that you gave every movie a 5 star; rating.  For comparison, 3 out of 4 critics on Rotten Tomatoes are between 61-80% positive.' }));
-	$('#hrt_modalInner').append($('<span>', { text: 'Variation:  0% means that you gave every movie the same rating (whether high or low), while 100% means you are equally as likely to give any rating.  For comparison, 2 out of 3 critics on Rotten Tomatoes have 51-70% variation in their ratings.' }));
 	$('#hrt_modalInner').append($('<strong>', { text: 'Information this app collects:' }));
 	$('#hrt_modalInner').append($('<span>', { text: 'This app only saves ratings data to your computer. Your movie ratings are 100% private to your computer and never transmitted. The app never accesses nor stores any login info.  The app never transmits personally identifiable information about the pages that you visit.  The app does use a Google Analytics cookie to send anonymous aggregated information to the developer.  This anonymous information includes:  how often the app is used and installed, movies with interesting Tomatometer scores, critics who have high similarity to many app users.' }));
-	$('#hrt_modalInner').append($('<strong>', { text: 'You\'ve rated ' + totalUserRatings + ' movies:' }));
 	$('#hrt_modalInner').append($('<div>', { id: 'hrt_rated_movies' }));
 	$('#hrt_modalInner').append($('<strong>'));
 	$('#hrt_modalInner').append($('<strong>', { text: 'Experimental features:' }));
@@ -877,7 +872,7 @@ function show_about_modal() {
 	$('#hrt_modalInner').append($('<strong>'));
 	$('#hrt_modalInner').find('strong:last').append($('<a>', { href: '#', text: 'erase your data', id: 'hrt_erase', style: 'color:red;' }));
 
-	// insert list of the user's ratings
+	// insert summary and list of the user's ratings
 	var tempArray = ratingsArray.slice(0);
 	tempArray.sort(function(a, b) {
 		var aSort = a[1];
@@ -890,7 +885,8 @@ function show_about_modal() {
 	var count4 = 0;
 	var count5 = 0;
 	var countTotal = 0;
-	var list = '<span style="margin-bottom:0px;">Your Rating, (Average Critic Rating), Movie Title</span>'
+	var list = '';
+	list += '<span style="margin-bottom:0px;">Your &#11089; Rating, (Average Critic Rating), Movie Title</span>'
 	for(var i=1,il=tempArray.length; i<il; i++) {
 		if(tempArray[i][1]>0) {
 			// user rated this movie
@@ -946,15 +942,20 @@ function show_about_modal() {
 	variance = variance/5;
 	var stdev = Math.sqrt(variance);
 	var variation = Math.round(((0.4472-stdev)/0.45)*100);
-	table += 'Total ratings: ' + countTotal + '<br>';
-	table += '5&#9733; ratings: ' + count5 + '<br>';
-	table += '4&#9733; ratings: ' + count4 + '<br>';
-	table += '3&#9733; ratings: ' + count3 + '<br>';
-	table += '2&#9733; ratings: ' + count2 + '<br>';
-	table += '1&#9733; ratings: ' + count1 + '<br>';
-	table += 'positivity: ' + positivity + '%<br>';
-	table += 'variation: ' + variation + '%<br>';
-	$('#hrt_ratings_table').html(table)
+	table += '<span>';
+	table += '&#11089;&#11089;&#11089;&#11089;&#11089;:&nbsp;&nbsp;' + count5 + '<br>';
+	table += '&#11089;&#11089;&#11089;&#11089;:&nbsp;&nbsp;' + count4 + '<br>';
+	table += '&#11089;&#11089;&#11089;:&nbsp;&nbsp;' + count3 + '<br>';
+	table += '&#11089;&#11089;:&nbsp;&nbsp;' + count2 + '<br>';
+	table += '&#11089;:&nbsp;&nbsp;' + count1 + '<br>';
+	table += 'Your positivity:&nbsp;' + positivity + '%&nbsp;&nbsp;<i>(most critics score 60-80%)</i><br>';
+	table += 'Your variation:&nbsp;' + variation + '%&nbsp;&nbsp;<i>(most critics score 50-70%)</i><br>';
+	table += '</span>';
+	table += '<span>If you rated every movie as five stars, your ratings positivity would be 100% and your ratings variation would be 0%.  If you rated every movie as one star, positivity would be 0% and variation 0%.  If each of the star categories above had the same count of movies, your rating variation would be 100%.</span>';
+	$('#hrt_rated_movies').prepend(table);
+	$('#hrt_rated_movies').prepend('<strong>You\'ve rated ' + countTotal + ' movies:</strong>');
+	$('#hrt_modalInner').append($('<span>', { text: '' }));
+	$('#hrt_modalInner').append($('<span>', { text: '' }));
 
 	// bindings
 	$('#hrt_modalClickZone').click(function(event) {
