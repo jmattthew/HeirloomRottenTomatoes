@@ -134,6 +134,8 @@ var totalUserRatings = 0;
 var dataReadyTimer = 0;
 var updatingTimer = 0;
 var starMatchTimer = 0;
+var frTimer = 0;
+var frPartialImportTimer = 0;
 var loginTimer = 0;
 var scrapeErrors = '';
 var toolTipData = [];
@@ -279,8 +281,8 @@ messagePort.onMessage.addListener(function(msg) {
 					$('#hrt_rating_widget UL').css('visibility','visible');
 					$('#hrt_updating').css('display','none');
 					clearInterval(updatingTimer);
-				}).fail(function() {
-					$('#hrt_updating').html('Could not gather critic reviews. Please try again.<br>Rotten Tomatoes returned this error message:<br>' + scrapeErrors);
+				}).fail(function( jqXHR, textStatus, errorThrown ) {
+					$('#hrt_updating').html('Could not gather critic reviews. Please try again.<br>Rotten Tomatoes returned this error message:<br>' + scrapeErrors + '<br>PROCESS:critic ratings for movie page STATUS:' + textStatus + ' ERROR:' + errorThrown);
 					clearInterval(updatingTimer);
 				});
 			},fadeTime);
@@ -1378,8 +1380,8 @@ function add_scrape_calls(calls,totalPages,path,index) {
 				frPercent = Math.round((frRatingsImported/frRatingsCount)*100);
 				frStatusTitle = path.substring(3,path.length-1);
 				frStatusTitle = frStatusTitle.replace(/_/g,' ');
-			}).fail(function(xhr, ajaxOptions, thrownError){
-				scrapeErrors += 'reviews page ' + pagesScraped + ': ' + xhr.status + ' (' + thrownError + ')';
+			}).fail(function( jqXHR, textStatus, errorThrown ) {
+				scrapeErrors += 'URL:' + jqXHR.url + ' STATUS:' + textStatus + ' ERROR:' + errorThrown + '<br>';
 				if(pagesScraped < totalPages) {
 					pagesScraped++;
 				}
@@ -1603,7 +1605,7 @@ function firstRun_afterLogin() {
 	}).done(function(response) {
 		ratingsArePublic = true;
 		firstRun_selectModal(hasRatings,ratingsArePublic);
-	}).fail(function(xhr, ajaxOptions, thrownError){
+	}).fail(function( jqXHR, textStatus, errorThrown ) {
 		firstRun_selectModal(hasRatings,ratingsArePublic);
 	});
 }
@@ -1670,7 +1672,7 @@ function firstRun_showModal(modalType) {
 	if(ratingsArray.length > 1) {
 		// existing app user
 		firstRunSubheader = 'This is version '+ appVersion;
-		firstRunIntro = 'You can import all the ratings from your Rotten Tomatoes account. If you rated some movies before installing this app, importing those ratings will make the app more accurate.  This process may take up to a few minutes depending on your connection speed and number of ratings.  You can pause and resume at any time.';
+		firstRunIntro = 'You can import all the ratings from your Rotten Tomatoes account. If you rated some movies before installing this app, importing those ratings will make the app more accurate.  This process may take up to a few minutes depending on your connection speed and number of ratings.  You can stop and resume at any time.';
 	} else {
 		// new app install
 		firstRunSubheader = 'Getting Started:';
@@ -1713,7 +1715,7 @@ function firstRun_showModal(modalType) {
 
 		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Stop Importing', id: 'firstRun_button_stopImport', class: 'button' }));
 
-		var frTimer = setInterval(function() {
+		frTimer = setInterval(function() {
 			$('#firstRun_importMessage').html(frImportMessage);
 			var width = frPercent + '%';
 			$('#hrt_firstRun_statusBar').css('width', width);
@@ -1725,18 +1727,19 @@ function firstRun_showModal(modalType) {
 		if(frMoviesCount > 0) {
 			$('#hrt_modalInner').append($('<span>', { text: 'Finished!  Successfully imported ' + frMoviesCount + ' movie past ratings previously unknown to this app.  Your future ratings are imported automatically.  Visit any movie page to see the results of the import.', class: 'instruction' }));
 		} else {
-			$('#hrt_modalInner').append($('<span>', { text: 'The app successfully imported your past movie ratings, however, they were all already known to the app.  At least you\'re no longer living in doubt!', class: 'instruction' }));
+			$('#hrt_modalInner').append($('<span>', { text: 'All of your movie ratings are already known to the app, so there\'s nothing new to import.  Tap "EXTRAS & HELP" to see all of your ratings.', class: 'instruction' }));
 		}
 		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Close', id: 'firstRun_button_close', class: 'button' }));
 
 	} else if(modalType == 'error') {
 
 		if(frContinueImport) {
-			$('#hrt_modalInner').append($('<span>', { text: 'Sorry!  The app was unable to import your ratings, most likely, due to internet connection issues.  The error messages was: ' + frImportMessage + '.  Would you like to try again?', class: 'instruction' }));
+			$('#hrt_modalInner').append($('<span>', { text: 'Sorry!  The app was unable to import your ratings, most likely, due to internet connection issues.  The error messages was: "' + frImportMessage + '".  Would you like to try again?', class: 'instruction' }));
 			$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Okay, try again', id: 'firstRun_button_importRatings', class: 'button' }));
 			$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Skip import', id: 'firstRun_button_dismissFirstRun', class: 'button' }));
 		} else {
-			$('#hrt_modalInner').append($('<span>', { text: 'You have cancelled the import.  Your future ratings will be imported automatically, and you can retry importing past ratings at any time by using the "Extras" page.  Visit any movie page now to see the results of the import.', class: 'instruction' }));
+			frImportMessage = '';
+			$('#hrt_modalInner').append($('<span>', { text: 'You have cancelled the import.  Only some of your past ratings have been imported, but you can import the rest at any time by tapping "Extras & Help".  Visit any movie page now to see the results of the import.  And future ratings you make will be imported automatically.', class: 'instruction' }));
 			$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Close', id: 'firstRun_button_close', class: 'button' }));
 		}
 
@@ -1811,15 +1814,19 @@ function firstRun_assignEvents() {
 	$('#firstRun_button_stopImport').click(function(event) {
 		frContinueImport = false;
 		for(var x=0, xl=frCallsTotalPages.length; x<xl; x++) {
-			if(!frCallsTotalPages[x].status) {
+			// status is undefined if not yet completed or failed
+			if(!frCallsTotalPages[x].statusText) {
 				frCallsTotalPages[x].abort();
 			}
 		}
 		for(var x=0, xl=frCallsCriticRatings.length; x<xl; x++) {
-			if(!frCallsCriticRatings[x].status) {
+			if(!frCallsCriticRatings[x].statusText) {
 				frCallsCriticRatings[x].abort();
 			}
 		}
+		$('#hrt_modal').remove();
+		$('#hrt_modalClickZone').remove();
+		firstRun_showModal('error');
 		return false;
 	});
 
@@ -1914,11 +1921,11 @@ function firstRun_importUserRatings() {
 		if(frContinueImport) {
 			firstRun_scrape_critic_ratings();
 		}
-	}).fail(function(xhr, ajaxOptions, thrownError){
-		frImportMessage = xhr.status + ' (' + thrownError + ')';
+	}).fail(function( jqXHR, textStatus, errorThrown ) {
+		frImportMessage += 'URL:' + ujqXHR.url + ' STATUS:' + textStatus + ' ERROR:' + errorThrown;
 		$('#hrt_modal').remove();
 		$('#hrt_modalClickZone').remove();
-		firstRun_showModal(error);
+		firstRun_showModal('error');
 	});
 }
 
@@ -1956,8 +1963,8 @@ function firstRun_scrape_critic_ratings() {
 				frPercent = Math.round((frMoviesImported/frMoviesCount)*100);
 				frStatusTitle = filmPath.substring(3,filmPath.length-1);
 				frStatusTitle = frStatusTitle.replace(/_/g,' ');
-			}).fail(function(xhr, ajaxOptions, thrownError){
-				frImportMessage = xhr.status + ' (' + thrownError + ')';
+			}).fail(function( jqXHR, textStatus, errorThrown ) {
+				frImportMessage += 'URL: ' + jqXHR.url + ' STATUS:' + textStatus + ' ERROR:' + errorThrown;
 				$('#hrt_modal').remove();
 				$('#hrt_modalClickZone').remove();
 				firstRun_showModal('error');
@@ -1967,7 +1974,7 @@ function firstRun_scrape_critic_ratings() {
 
 	// concurrently execute the totalPages calls
 	$.when.apply(null, frCallsTotalPages).done(function() {
-		frImportMessage = 'Found your ratings for ' + frMoviesCount + ' movies previously unknown to this app.  Now importing every critics\'s rating of each movie.' ;
+		frImportMessage = 'Found your ratings for ' + frMoviesCount + ' movies previously unknown to this app.  Now importing every critics\'s rating of each movie.  You can stop and resume at any time.' ;
 		// may have been set by earlier if this is a movie page
 		frRatingsImported = 0;
 		for(x=0; x<frMoviesCount; x++) {
@@ -1986,8 +1993,6 @@ function firstRun_scrape_critic_ratings() {
 
 		// concurrently execute criticRatings calls
 		$.when.apply(null, frCallsCriticRatings).done(function() {
-
-			save_to_storage();
 			firstRun = 'ratings found';
 			storage.set({'firstRun': firstRun}, function() {
 				messagePort.postMessage({ firstRun: [firstRun,frMoviesCount] });
@@ -1999,28 +2004,86 @@ function firstRun_scrape_critic_ratings() {
 				update_critics_widget();
 				update_tomatometer();
 			}
-			clearInterval('frTimer');
+			firstRun_partial_import_cleanup();
+			clearInterval(frTimer);
 			$('#hrt_modal').remove();
 			$('#hrt_modalClickZone').remove();
 			firstRun_showModal('complete');
-		}).fail(function() {
-			clearInterval('frTimer');
+		}).fail(function( jqXHR, textStatus, errorThrown ) {
+			firstRun_partial_import_cleanup();
+			clearInterval(frTimer);
 			$('#hrt_modal').remove();
 			$('#hrt_modalClickZone').remove();
-			frImportMessage = scrapeErrors;
+			frImportMessage = scrapeErrors + '<br>PROCESS:critic ratings for all imported movies STATUS:' + textStatus + ' ERROR:' + errorThrown;
 			firstRun_showModal('error');
 		});
-	}).fail(function() {
-		clearInterval('frTimer');
+	}).fail(function( jqXHR, textStatus, errorThrown ) {
+		clearInterval(frTimer);
 		$('#hrt_modal').remove();
 		$('#hrt_modalClickZone').remove();
-		frImportMessage = scrapeErrors;
+		frImportMessage = scrapeErrors + '<br>PROCESS:list of user\'s ratings STATUS:' + textStatus + ' ERROR:' + errorThrown;
 		firstRun_showModal('error');
 	});
 
 }
 
-
+function firstRun_partial_import_cleanup() {
+	// wait until all ajax have resolved status
+	frPartialImportTimer = setInterval(function() {
+		var waitingForStatus = false;
+		// statusText is undefined if ajax is still pending
+		for(var x=0, xl=frCallsTotalPages.length; x<xl; x++) {
+			if(!frCallsTotalPages[x].statusText) {
+				waitingForStatus = true;
+				break;
+			}
+		}
+		for(var x=0, xl=frCallsCriticRatings.length; x<xl; x++) {
+			if(!frCallsCriticRatings[x].statusText) {
+				waitingForStatus = true;
+				break;
+			}
+		}
+		if(!waitingForStatus) {
+			clearInterval(frPartialImportTimer);
+			// remove movies if user rating exists but no critic ratings were imported
+			// side effect:  one movie will have some but not all of its critics' ratings imported.  Therefore it won't be removed, and it will be inaccurate.  Fixing this would be difficult.
+			for(var i=1, il=ratingsArray.length; i<il; i++) {
+				if(!ratingsArray[i][1]) {
+					// this shouldn't be necessary
+					ratingsArray[i][1] == 0;
+				}
+				if(ratingsArray[i][1]>0) {
+					// user has rated
+					var criticCount = 0;
+					for(var j=2, jl=ratingsArray[i].length; j<jl; j++) {
+						if(ratingsArray[i][j]>0) {
+							criticCount++;
+						}
+					}
+					if(criticCount==0) {
+						// if no critic ratings, set user rating to 0
+						ratingsArray[i][1]=0;
+					}
+				}
+			}
+			// sort zero'ed user ratings to end
+			ratingsArray.sort(function(a, b) {
+				var aSort = a[1];
+				var bSort = b[1];
+				return bSort-aSort;
+			});
+			var zeroCount = 0;
+			for(var i=1, il=ratingsArray.length; i<il; i++) {
+				if(ratingsArray[i][1]==0) {
+					zeroCount++;
+				}
+			}
+			ratingsArray.splice(ratingsArray.length-zeroCount,zeroCount);
+			save_to_storage();
+		}
+	},500);
+}
 
 
 
