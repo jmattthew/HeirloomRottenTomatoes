@@ -135,24 +135,27 @@ var dataReadyTimer = 0;
 var updatingTimer = 0;
 var starMatchTimer = 0;
 var frTimer = 0;
-var frPartialImportTimer = 0;
+var partialImportTimer = 0;
 var loginTimer = 0;
-var scrapeErrors = '';
 var toolTipData = [];
 var hasScrolledReviews = false;
 
 // firstRun data
 var firstRun = '';
 var frPrivacy = 'NON';
-var frMoviesCount = 0;
+var frMoviesFound = 0;
+var frMoviesTried = 0;
 var frMoviesImported = 0;
 var frRatingsCount = 0;
 var frRatingsImported = 0;
 var frImportMessage = '';
+var debuggingMessage = '';
 var frContinueImport = true;
 var frUserRatingsArray = [];
-var frCallsCriticRatings = [];
-var frCallsTotalPages = [];
+var frMoviesXhrs = [];
+var frMoviesDeferred, frMoviesDeferreds = [];
+var criticRatingsXhrs = [];
+var criticRatingsDeferred, criticRatingsDeferreds = [];
 var frPercent = 0;
 var frStatusTitle = '';
 
@@ -256,8 +259,6 @@ messagePort.onMessage.addListener(function(msg) {
 				var totalPages = find_total_pages();
 				show_update_status(totalPages);
 				ratingsArray_add_this_movie();
-				// create array of ajax calls to be made
-				var concurrentCalls = [];
 				// each scrape call updates the ratingsArray & criticsArray
 				var scrapePath = $(elReviewsScrapeLink).attr('href');
 				if(scrapePath) {
@@ -266,9 +267,11 @@ messagePort.onMessage.addListener(function(msg) {
 				} else {
 					scrapePath = pageFilmPath;
 				}
-				add_scrape_calls(concurrentCalls,totalPages,scrapePath,pageFilmIndex);
-				// concurrently execute the calls
-				$.when.apply(null, concurrentCalls).done(function() {
+				do_scrape_calls(totalPages,scrapePath,pageFilmIndex);
+				// execute when all criticRatingsDeferreds have resolved
+				$.when.apply(null, criticRatingsDeferreds)
+				.done(function() {
+					criticRatingsXhrs = [];
 					criticsArray_add_existing();
 					criticsArray_update();
 					rating_widget_events_match();
@@ -281,10 +284,10 @@ messagePort.onMessage.addListener(function(msg) {
 					$('#hrt_rating_widget UL').css('visibility','visible');
 					$('#hrt_updating').css('display','none');
 					clearInterval(updatingTimer);
-				}).fail(function( jqXHR, textStatus, errorThrown ) {
-					$('#hrt_updating').html('Could not gather critic reviews. Please try again.<br>Rotten Tomatoes returned this error message:<br>' + scrapeErrors + '<br>PROCESS:critic ratings for movie page STATUS:' + textStatus + ' ERROR:' + errorThrown);
-					clearInterval(updatingTimer);
+					partial_import_cleanup();
+					criticRatingsDeferreds = [];
 				});
+				// fail state unneeded, nothing could possibli go wrong
 			},fadeTime);
 		}
 	}
@@ -757,27 +760,29 @@ function rating_widget_events_match() {
 	// until well after the page loads,
 	// so we have to listen for it
 	var observer = new MutationObserver(function(mutations, observer) {
-		if($(starWidgetRT)[0] instanceof Node) {
-			var rtWidget = $(starWidgetRT);
-			var rtStars = $(rtWidget)[0].style.width;
-			var num = Math.round(parseInt(rtStars)/20);
-			if(num>0 && num != ratingsArray[pageFilmIndex][1]) {
-				// RT rating exists and doesn't match local rating
-				// override local
-				rating_widget_events_save(num);
-				rating_widget_events_update(num);
-				criticsArray_update();
-				update_critics_widget();
-				update_tomatometer();
-				save_to_storage();
-			} else {
-				if(ratingsArray[pageFilmIndex][1]>0) {
-					// RT rating doesn't exist but local rating does
-					// so update RT widget
-					simulate_rt_widget_click(num);
+		if(ratingsArray[pageFilmIndex]) {
+			if($(starWidgetRT)[0] instanceof Node) {
+				var rtWidget = $(starWidgetRT);
+				var rtStars = $(rtWidget)[0].style.width;
+				var num = Math.round(parseInt(rtStars)/20);
+				if(num>0 && num != ratingsArray[pageFilmIndex][1]) {
+					// RT rating exists and doesn't match local rating
+					// override local
+					rating_widget_events_save(num);
+					rating_widget_events_update(num);
+					criticsArray_update();
+					update_critics_widget();
+					update_tomatometer();
+					save_to_storage();
+				} else {
+					if(ratingsArray[pageFilmIndex][1]>0) {
+						// RT rating doesn't exist but local rating does
+						// so update RT widget
+						simulate_rt_widget_click(num);
+					}
 				}
+				observer.disconnect();
 			}
-			observer.disconnect();
 		}
 	});
 	var observationTarget = $(ratingWidgetTarget)[0];
@@ -1289,51 +1294,62 @@ function ratingsArray_add_this_movie() {
 	}
 }
 
-function add_scrape_calls(calls,totalPages,path,index) {
+function do_scrape_calls(totalPages,path,index) {
 	for(var page=0; page<totalPages; page++) {
+		criticRatingsDeferred = $.Deferred();
+		criticRatingsDeferreds.push(criticRatingsDeferred);
 		var urlPage = page+1;
-		calls.push(
-			$.ajax({
-				url: path + 'reviews/?page=' + urlPage + '&sort=name',
-				cache: false,
-				dataType: 'html',
-			}).done(function(response) {
-				var el = $('<div>').html(response);
-				el = $(el).find(elReviewsListRow);
-				// for each critic on this page
-				if($(el).length>0) {
-					for(var y=0, yl=$(el).length; y<yl; y++) {
-						var criticRow = $(el).eq(y);
-						var criticName = '(unknown)';
-						var criticPath = '';
-						var criticIsTop = false;
-						var reviewBlurb = '';
-						var reviewPath = '';
-						if($(criticRow).find(elCriticName).length>0) {
-							criticName = $(criticRow).find(elCriticName).text();
-							criticPath = $(criticRow).find(elCriticName).attr('href');
-							if($(criticRow).find(elCriticIsTop).length>0) {
-								if($(criticRow).find(elCriticIsTop).html().indexOf('Top Critic')>0) {
-									criticIsTop = true;
-								}
-							}
-							if(criticPath.indexOf('/critic/')<0 && $(criticRow).find(elCriticPub).length>0) {
-					 			// this review comes from a publication rather than a critic (usually 20th century movie)
-					 			criticName = $(elCriticPub).text();
-					 			criticPath = $(elCriticPub).parent().attr('href');
-							}
-						}
-						if($(criticRow).find(elReviewBlurb).length>0) {
-							reviewBlurb = $(criticRow).find(elReviewBlurb).eq(0).text();
-						}
-						if($(criticRow).find(elReviewPath).length>0) {
-							reviewPath = $(criticRow).find(elReviewPath).eq(0).attr('href');
-						} else {
-							reviewPath = criticPath;
-						}
-						var criticRating = covertRatingToFiveStars($(criticRow));
 
-						// adding data to criticsArray
+		var xhr = new window.XMLHttpRequest();
+		var request = $.ajax({
+			url: path + 'reviews/?page=' + urlPage + '&sort=name',
+			cache: false,
+			dataType: 'html',
+			xhr: function(){
+				return xhr;
+			}
+		})
+		.done(function(response) {
+			var el = $('<div>').html(response);
+			el = $(el).find(elReviewsListRow);
+			// for each critic on this page
+			if($(el).length>0) {
+				for(var y=0, yl=$(el).length; y<yl; y++) {
+					var criticRow = $(el).eq(y);
+					var criticName = '(unknown)';
+					var criticPath = '';
+					var criticIsTop = false;
+					var reviewBlurb = '';
+					var reviewPath = '';
+					if($(criticRow).find(elCriticName).length>0) {
+						criticName = $(criticRow).find(elCriticName).text();
+						criticPath = $(criticRow).find(elCriticName).attr('href');
+						if($(criticRow).find(elCriticIsTop).length>0) {
+							if($(criticRow).find(elCriticIsTop).html().indexOf('Top Critic')>0) {
+								criticIsTop = true;
+							}
+						}
+						if(criticPath.indexOf('/critic/')<0 && $(criticRow).find(elCriticPub).length>0) {
+				 			// this review comes from a publication rather than a critic (usually 20th century movie)
+				 			criticName = $(elCriticPub).text();
+				 			criticPath = $(elCriticPub).parent().attr('href');
+						}
+					}
+
+					if($(criticRow).find(elReviewBlurb).length>0) {
+						reviewBlurb = $(criticRow).find(elReviewBlurb).eq(0).text();
+					}
+					if($(criticRow).find(elReviewPath).length>0) {
+						reviewPath = $(criticRow).find(elReviewPath).eq(0).attr('href');
+					} else {
+						reviewPath = criticPath;
+					}
+					var criticRating = covertRatingToFiveStars($(criticRow));
+
+					// adding data to criticsArray
+					var shortPath = path.substring(path.indexOf('.com')+4,path.length);
+					if(shortPath == pageFilmPath) {
+						// after import, only add to critic widget each critic's rating of the current movie page
 						var num = criticsArray.length;
 						criticsArray[num] = [];
 						criticsArray[num][0] = criticName;
@@ -1342,52 +1358,57 @@ function add_scrape_calls(calls,totalPages,path,index) {
 						criticsArray[num][3] = criticRating;
 						criticsArray[num][4] = reviewPath;
 						criticsArray[num][5] = reviewBlurb;
-
-						// search for this critic in the ratingsArray
-						var criticColumn = ratingsArray[0].length;
-						for(var j=2, jl=ratingsArray[0].length; j<jl; j++) {
-							// cycling through ratingsArray to find matching critic
-							// in past HRT versions, '/critic/' was stripped from the path
-							if(ratingsArray[0][j][1].indexOf(criticPath)>-1) {
-								criticColumn = j;
-								break;
-							}
-						}
-
-						if(criticColumn == ratingsArray[0].length) {
-							// add empty column if needed
-							ratingsArray[0][criticColumn] = [];
-							for(var i=1, il=ratingsArray.length; i<il; i++) {
-								// for each film row add new cell to end
-								ratingsArray[i][criticColumn] = 0;
-							}
-						}
-
-						// note we are always overwriting data for this critic
-						// in case their isTop status changes
-						ratingsArray[0][criticColumn][0] = criticName;
-						ratingsArray[0][criticColumn][1] = criticPath;
-						ratingsArray[0][criticColumn][2] = criticIsTop;
-						ratingsArray[0][criticColumn][3] = 0; // legacy
-						// add or overwrite critic rating's for this film
-						ratingsArray[index][criticColumn] = criticRating;
 					}
+
+					// search for this critic in the ratingsArray
+					var criticColumn = ratingsArray[0].length;
+					for(var j=2, jl=ratingsArray[0].length; j<jl; j++) {
+						// cycling through ratingsArray to find matching critic
+						// in past HRT versions, '/critic/' was stripped from the path
+						if(ratingsArray[0][j][1].indexOf(criticPath)>-1) {
+							criticColumn = j;
+							break;
+						}
+					}
+
+					if(criticColumn == ratingsArray[0].length) {
+						// add empty column if needed
+						ratingsArray[0][criticColumn] = [];
+						for(var i=1, il=ratingsArray.length; i<il; i++) {
+							// for each film row add new cell to end
+							ratingsArray[i][criticColumn] = 0;
+						}
+					}
+
+					// note we are always overwriting data for this critic
+					// in case their isTop status changes
+					ratingsArray[0][criticColumn][0] = criticName;
+					ratingsArray[0][criticColumn][1] = criticPath;
+					ratingsArray[0][criticColumn][2] = criticIsTop;
+					ratingsArray[0][criticColumn][3] = 0; // legacy
+					// add or overwrite critic rating's for this film
+					ratingsArray[index][criticColumn] = criticRating;
 				}
-				if(pagesScraped < totalPages) {
-					pagesScraped++;
-				}
-				frRatingsImported++;
-				frPercent = Math.round((frRatingsImported/frRatingsCount)*100);
-				frStatusTitle = path.substring(3,path.length-1);
-				frStatusTitle = frStatusTitle.replace(/_/g,' ');
-			}).fail(function( jqXHR, textStatus, errorThrown ) {
-				scrapeErrors += 'URL:' + jqXHR.url + ' STATUS:' + textStatus + ' ERROR:' + errorThrown + '<br>';
-				if(pagesScraped < totalPages) {
-					pagesScraped++;
-				}
-			})
-		);
-	};
+			}
+			if(pagesScraped < totalPages) {
+				pagesScraped++;
+			}
+			frStatusTitle = path.substring(3,path.length-1);
+			frStatusTitle = frStatusTitle.replace(/_/g,' ');
+			frRatingsImported++;
+			frPercent = Math.round((frRatingsImported/frRatingsCount)*100);
+		})
+		.fail(function( jqXHR, textStatus, errorThrown ) {
+			frRatingsImported++;
+			frPercent = Math.round((frRatingsImported/frRatingsCount)*100);
+			var errorUrl = this.url;
+			// remove cache busting string
+			errorUrl = errorUrl.substring(0,errorUrl.indexOf('_='))
+			debuggingMessage = '<br>ERROR:' + errorUrl + ':' + errorThrown + debuggingMessage;
+		})
+		.always(criticRatingsDeferred.resolve);
+		criticRatingsXhrs.push(xhr);
+	}
 }
 
 function criticsArray_add_existing() {
@@ -1578,7 +1599,6 @@ function firstRun_check(doWait) {
 				});
 				// wait a bit to see if the mutation occurs, then give up
 				loginTimer = setTimeout(function(){
-					$('#hrt_modal').remove();
 					firstRun_showModal('requestLogin');
 					observer2.disconnect();
 				},10000);
@@ -1597,7 +1617,6 @@ function firstRun_afterLogin() {
 	userIDRT = userIDRT.substring(0,userIDRT.indexOf('/ratings'));
 	var hasRatings = firstRun_getRatings();
 	var ratingsArePublic = false;
-	// ajax is asynchronous
 	$.ajax({
 		url: '/user/id/' + userIDRT + '/ratings',
 		cache: false,
@@ -1606,6 +1625,10 @@ function firstRun_afterLogin() {
 		ratingsArePublic = true;
 		firstRun_selectModal(hasRatings,ratingsArePublic);
 	}).fail(function( jqXHR, textStatus, errorThrown ) {
+		var errorUrl = this.url;
+		// remove cache busting string
+		errorUrl = errorUrl.substring(0,errorUrl.indexOf('_='))
+		debuggingMessage = '<br>ERROR:' + errorUrl + ':' + errorThrown + debuggingMessage;
 		firstRun_selectModal(hasRatings,ratingsArePublic);
 	});
 }
@@ -1663,9 +1686,11 @@ function appUdate_showModal(previousVersion) {
 }
 
 function firstRun_showModal(modalType) {
+	$('#hrt_modal').remove();
+	$('#hrt_modalClickZone').remove();
 	$('BODY').append($('<div>',{ id: 'hrt_modalClickZone' }));
 	$('BODY').append($('<div>',{ id: 'hrt_modal' }));
-	$('#hrt_modal').append($('<div>', { id: 'hrt_modalInner' }));
+	$('#hrt_modal').append($('<div>', { id: 'hrt_modalInner', style: 'max-height: 80vh' }));
 	$('#hrt_modalInner').append($('<strong>', { text: 'Thanks for Using Heirloom Rotten Tomatoes!', style: 'text-align:center; padding-bottom:10px;' }));
 	var firstRunSubheader = '';
 	var firstRunIntro = '';
@@ -1715,33 +1740,43 @@ function firstRun_showModal(modalType) {
 
 		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Stop Importing', id: 'firstRun_button_stopImport', class: 'button' }));
 
+		$('#hrt_modalInner').append($('<span>', { id: 'hrt_raw_debug', class: 'instruction' }));
+
 		frTimer = setInterval(function() {
 			$('#firstRun_importMessage').html(frImportMessage);
 			var width = frPercent + '%';
 			$('#hrt_firstRun_statusBar').css('width', width);
 			$('#hrt_firstRun_statusTitle').html(frStatusTitle);
+			$('#hrt_raw_debug').html(debuggingMessage);
 		}, 250);
 
 	} else if(modalType == 'complete') {
 
-		if(frMoviesCount > 0) {
-			$('#hrt_modalInner').append($('<span>', { text: 'Finished!  Successfully imported ' + frMoviesCount + ' movie past ratings previously unknown to this app.  Your future ratings are imported automatically.  Visit any movie page to see the results of the import.', class: 'instruction' }));
+		if(frMoviesFound > 0  && frMoviesFound == frMoviesImported) {
+			$('#hrt_modalInner').append($('<span>', { text: 'Finished!  Successfully imported your past ratings of ' + frMoviesImported + ' movies that were previously unknown to this app.  Your future ratings will be imported automatically.  Visit any movie page to see the results of the import.', class: 'instruction' }));
+		} else if(frMoviesFound > 0) {
+			$('#hrt_modalInner').append($('<span>', { text: 'Finished!  Imported ' + frMoviesImported + ' of your ' + frMoviesFound + ' past movie ratings.  Unfortunately, the other past ratings could not be imported.  Your future ratings will be imported automatically.  Visit any movie page to see the results of the import.', class: 'instruction' }));
 		} else {
 			$('#hrt_modalInner').append($('<span>', { text: 'All of your movie ratings are already known to the app, so there\'s nothing new to import.  Tap "EXTRAS & HELP" to see all of your ratings.', class: 'instruction' }));
 		}
 		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Close', id: 'firstRun_button_close', class: 'button' }));
+		$('#hrt_modalInner').append($('<span>', { id: 'hrt_raw_debug', class: 'instruction' }));
+		$('#hrt_raw_debug').html(debuggingMessage);
 
-	} else if(modalType == 'error') {
+	} else if(modalType == 'nouser_or_stopped') {
 
 		if(frContinueImport) {
-			$('#hrt_modalInner').append($('<span>', { text: 'Sorry!  The app was unable to import your ratings, most likely, due to internet connection issues.  The error messages was: "' + frImportMessage + '".  Would you like to try again?', class: 'instruction' }));
+			// nouser
+			$('#hrt_modalInner').append($('<span>', { text: 'Sorry!  The app was unable to find your list of movie ratings, but that might be a temporary error.  Would you like to try again?', class: 'instruction' }));
 			$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Okay, try again', id: 'firstRun_button_importRatings', class: 'button' }));
 			$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Skip import', id: 'firstRun_button_dismissFirstRun', class: 'button' }));
 		} else {
-			frImportMessage = '';
+			// stopped
 			$('#hrt_modalInner').append($('<span>', { text: 'You have cancelled the import.  Only some of your past ratings have been imported, but you can import the rest at any time by tapping "Extras & Help".  Visit any movie page now to see the results of the import.  And future ratings you make will be imported automatically.', class: 'instruction' }));
 			$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Close', id: 'firstRun_button_close', class: 'button' }));
 		}
+		$('#hrt_modalInner').append($('<span>', { id: 'hrt_raw_debug', class: 'instruction' }));
+		$('#hrt_raw_debug').html(debuggingMessage);
 
 	}
 	firstRun_assignEvents();
@@ -1758,6 +1793,7 @@ function firstRun_assignEvents() {
 		storage.set({'firstRun': firstRun}, function() {
 			messagePort.postMessage({ firstRun: [firstRun,null] });
 		});
+		debuggingMessage = '';
 		return false;
 
 	});
@@ -1781,8 +1817,6 @@ function firstRun_assignEvents() {
 	});
 
 	$('#firstRun_button_setRatingsPublic').click(function(event) {
-		$('#hrt_modal').remove();
-		$('#hrt_modalClickZone').remove();
 		firstRun_showModal('importing');
 		firstRun = 'privacyUpdate';
 		$('body').append($('<iframe>',{ id: 'hrt_privacyModal', style: 'display:block; width:800px; height:800px;' }));
@@ -1804,35 +1838,28 @@ function firstRun_assignEvents() {
 	});
 
 	$('#firstRun_button_importRatings').click(function(event) {
-		$('#hrt_modal').remove();
-		$('#hrt_modalClickZone').remove();
 		firstRun_showModal('importing');
 		firstRun_importUserRatings();
+		debuggingMessage = '';
 		return false;
 	});
 
 	$('#firstRun_button_stopImport').click(function(event) {
 		frContinueImport = false;
-		for(var x=0, xl=frCallsTotalPages.length; x<xl; x++) {
-			// status is undefined if not yet completed or failed
-			if(!frCallsTotalPages[x].statusText) {
-				frCallsTotalPages[x].abort();
-			}
+		for(var x=0, xl=frMoviesXhrs.length; x<xl; x++) {
+			frMoviesXhrs[x].abort();
 		}
-		for(var x=0, xl=frCallsCriticRatings.length; x<xl; x++) {
-			if(!frCallsCriticRatings[x].statusText) {
-				frCallsCriticRatings[x].abort();
-			}
+		for(var x=0, xl=criticRatingsXhrs.length; x<xl; x++) {
+			criticRatingsXhrs[x].abort();
 		}
-		$('#hrt_modal').remove();
-		$('#hrt_modalClickZone').remove();
-		firstRun_showModal('error');
+		firstRun_showModal('nouser_or_stopped');
 		return false;
 	});
 
 	$('#firstRun_button_close').click(function(event) {
 		$('#hrt_modal').remove();
 		$('#hrt_modalClickZone').remove();
+		debuggingMessage = '';
 		return false;
 	});
 }
@@ -1880,12 +1907,12 @@ function firstRun_getPrivacySetting() {
 }
 
 function firstRun_importUserRatings() {
-	// ajax is asynchronous
 	$.ajax({
 		url: '/user/id/' + userIDRT + '/ratings',
 		cache: false,
 		dataType: 'html'
-	}).done(function(response) {
+	})
+	.done(function(response) {
 		var el = $('<div>').html(response);
 		el = $(el).find(elUserRatingRow);
 		// get user's ratings
@@ -1909,11 +1936,11 @@ function firstRun_importUserRatings() {
 				}
 			}
 			if(!match) {
-				frUserRatingsArray[frMoviesCount] = [];
-				frUserRatingsArray[frMoviesCount][0] = filmName;
-				frUserRatingsArray[frMoviesCount][1] = filmPath;
-				frUserRatingsArray[frMoviesCount][2] = stars;
-				frMoviesCount++;
+				frUserRatingsArray[frMoviesFound] = [];
+				frUserRatingsArray[frMoviesFound][0] = filmName;
+				frUserRatingsArray[frMoviesFound][1] = filmPath;
+				frUserRatingsArray[frMoviesFound][2] = stars;
+				frMoviesFound++;
 			}
 		}
 
@@ -1921,11 +1948,13 @@ function firstRun_importUserRatings() {
 		if(frContinueImport) {
 			firstRun_scrape_critic_ratings();
 		}
-	}).fail(function( jqXHR, textStatus, errorThrown ) {
-		frImportMessage += 'URL:' + ujqXHR.url + ' STATUS:' + textStatus + ' ERROR:' + errorThrown;
-		$('#hrt_modal').remove();
-		$('#hrt_modalClickZone').remove();
-		firstRun_showModal('error');
+	})
+	.fail(function( jqXHR, textStatus, errorThrown ) {
+		var errorUrl = this.url;
+		// remove cache busting string
+		errorUrl = errorUrl.substring(0,errorUrl.indexOf('_='))
+		debuggingMessage = '<br>ERROR:' + errorUrl + ':' + errorThrown + debuggingMessage;
+		firstRun_showModal('nouser_or_stopped');
 	});
 }
 
@@ -1934,50 +1963,62 @@ function firstRun_scrape_critic_ratings() {
 	$('#hrt_firstRun_statusBarHolder').css('display','block');
 	$('#hrt_firstRun_statusTitle').css('display','block');
 
-	// create array of ajax calls to be made
+	// for each movie, make an ajax call
 	// that will find total pages of reviews for each movie
-	// for each movie
-	for(x=0; x<frMoviesCount; x++) {
-		frCallsTotalPages.push(
-			$.ajax({
-				url: frUserRatingsArray[x][1],
-				cache: false,
-				dataType: 'html',
-			}).done(function(response) {
-				var el = $('<div>').html(response);
-				var temp = $(el).find(criticsCount).find('a').eq(0).html();
-				var totalPages = 0;
-				if(temp) {
-					totalPages = Math.ceil(parseInt(temp.substring(temp.indexOf('(')+1,temp.length-1))/20);
+	for(x=0; x<frMoviesFound; x++) {
+		frMoviesDeferred = $.Deferred();
+		frMoviesDeferreds.push(frMoviesDeferred);
+		var xhr = new window.XMLHttpRequest();
+		var request = $.ajax({
+			url: frUserRatingsArray[x][1],
+			cache: false,
+			dataType: 'html',
+			xhr: function(){
+				return xhr;
+			}
+		})
+		.done(function(response) {
+			var el = $('<div>').html(response);
+			var temp = $(el).find(criticsCount).find('a').eq(0).html();
+			var totalPages = 0;
+			if(temp) {
+				totalPages = Math.ceil(parseInt(temp.substring(temp.indexOf('(')+1,temp.length-1))/20);
+			}
+			// find movie in frUserRatingsArray to add totalPages
+			var filmPath = this.url.substring(0,this.url.indexOf('?'));
+			frStatusTitle = filmPath.substring(3,filmPath.length-1);
+			frStatusTitle = frStatusTitle.replace(/_/g,' ');
+			for(var y=0, yl=frUserRatingsArray.length; y<yl; y++) {
+				if(frUserRatingsArray[y][1]==filmPath) {
+					frUserRatingsArray[y][3] = totalPages;
+					break;
 				}
-				// find movie in frUserRatingsArray to add totalPages
-				var filmPath = this.url.substring(0,this.url.indexOf('?'));
-				for(var y=0, yl=frUserRatingsArray.length; y<yl; y++) {
-					if(frUserRatingsArray[y][1]==filmPath) {
-						frUserRatingsArray[y][3] = totalPages;
-						break;
-					}
-				}
-				frMoviesImported += 1;
-				frRatingsCount += totalPages;
-				frPercent = Math.round((frMoviesImported/frMoviesCount)*100);
-				frStatusTitle = filmPath.substring(3,filmPath.length-1);
-				frStatusTitle = frStatusTitle.replace(/_/g,' ');
-			}).fail(function( jqXHR, textStatus, errorThrown ) {
-				frImportMessage += 'URL: ' + jqXHR.url + ' STATUS:' + textStatus + ' ERROR:' + errorThrown;
-				$('#hrt_modal').remove();
-				$('#hrt_modalClickZone').remove();
-				firstRun_showModal('error');
-			})
-		);
+			}
+			frMoviesTried++;
+			frMoviesImported++;
+			frRatingsCount += totalPages;
+			frPercent = Math.round((frMoviesTried/frMoviesFound)*100);
+		})
+		.fail(function( jqXHR, textStatus, errorThrown ) {
+			frMoviesTried++;
+			frPercent = Math.round((frMoviesTried/frMoviesFound)*100);
+			var errorUrl = this.url;
+			// remove cache busting string
+			errorUrl = errorUrl.substring(0,errorUrl.indexOf('_='))
+			debuggingMessage = '<br>ERROR:' + errorUrl + ':' + errorThrown + debuggingMessage;
+		})
+		.always(frMoviesDeferred.resolve);
+		frMoviesXhrs.push(xhr);
 	}
 
-	// concurrently execute the totalPages calls
-	$.when.apply(null, frCallsTotalPages).done(function() {
-		frImportMessage = 'Found your ratings for ' + frMoviesCount + ' movies previously unknown to this app.  Now importing every critics\'s rating of each movie.  You can stop and resume at any time.' ;
+	// execute when all frMoviesDeferreds have resolved
+	$.when.apply(null, frMoviesDeferreds)
+	.done(function() {
+		frMoviesXhrs = [];
+		frImportMessage = 'Found your ratings for ' + frMoviesImported + ' movies previously unknown to this app.  Now importing every critics\'s rating of each movie.  You can stop and resume at any time.' ;
 		// may have been set by earlier if this is a movie page
 		frRatingsImported = 0;
-		for(x=0; x<frMoviesCount; x++) {
+		for(x=0; x<frMoviesFound; x++) {
 			var criticPercent = 0;
 			// add new row to ratingsArray
 			var num = ratingsArray.length;
@@ -1987,15 +2028,18 @@ function firstRun_scrape_critic_ratings() {
 			ratingsArray[num][0][1] = frUserRatingsArray[x][1] // filmPath;
 			ratingsArray[num][0][2] = 0; // legacy
 			ratingsArray[num][1] = frUserRatingsArray[x][2]; // user rating
+
 			// each scrape call updates the ratingsArray & criticsArray
-			add_scrape_calls(frCallsCriticRatings,frUserRatingsArray[x][3],frUserRatingsArray[x][1],num);
+			do_scrape_calls(frUserRatingsArray[x][3],frUserRatingsArray[x][1],num);
 		}
 
-		// concurrently execute criticRatings calls
-		$.when.apply(null, frCallsCriticRatings).done(function() {
+		// execute when all criticRatingsDeferreds have resolved
+		$.when.apply(null, criticRatingsDeferreds)
+		.done(function() {
+			criticRatingsXhrs = [];
 			firstRun = 'ratings found';
 			storage.set({'firstRun': firstRun}, function() {
-				messagePort.postMessage({ firstRun: [firstRun,frMoviesCount] });
+				messagePort.postMessage({ firstRun: [firstRun,frMoviesFound] });
 			});
 
 			if($(elScorePanel).length>0 && location.pathname.indexOf('/tv/')<0 && $(elPageFilmName).length>0) {
@@ -2004,85 +2048,52 @@ function firstRun_scrape_critic_ratings() {
 				update_critics_widget();
 				update_tomatometer();
 			}
-			firstRun_partial_import_cleanup();
 			clearInterval(frTimer);
-			$('#hrt_modal').remove();
-			$('#hrt_modalClickZone').remove();
+			partial_import_cleanup();
 			firstRun_showModal('complete');
-		}).fail(function( jqXHR, textStatus, errorThrown ) {
-			firstRun_partial_import_cleanup();
-			clearInterval(frTimer);
-			$('#hrt_modal').remove();
-			$('#hrt_modalClickZone').remove();
-			frImportMessage = scrapeErrors + '<br>PROCESS:critic ratings for all imported movies STATUS:' + textStatus + ' ERROR:' + errorThrown;
-			firstRun_showModal('error');
-		});
-	}).fail(function( jqXHR, textStatus, errorThrown ) {
-		clearInterval(frTimer);
-		$('#hrt_modal').remove();
-		$('#hrt_modalClickZone').remove();
-		frImportMessage = scrapeErrors + '<br>PROCESS:list of user\'s ratings STATUS:' + textStatus + ' ERROR:' + errorThrown;
-		firstRun_showModal('error');
+			criticRatingsDeferreds = [];
+		})
+		// fail state unneeded, nothing could possibli go wrong
 	});
-
+	// fail state unneeded, nothing could possibli go wrong
 }
 
-function firstRun_partial_import_cleanup() {
-	// wait until all ajax have resolved status
-	frPartialImportTimer = setInterval(function() {
-		var waitingForStatus = false;
-		// statusText is undefined if ajax is still pending
-		for(var x=0, xl=frCallsTotalPages.length; x<xl; x++) {
-			if(!frCallsTotalPages[x].statusText) {
-				waitingForStatus = true;
-				break;
-			}
+function partial_import_cleanup() {
+	// remove movies if user rating exists but no critic ratings were imported
+	// side effect:  one movie will have some but not all of its critics' ratings imported.  Therefore it won't be removed, and it will be inaccurate.  Fixing this would be difficult.
+	for(var i=1, il=ratingsArray.length; i<il; i++) {
+		if(!ratingsArray[i][1]) {
+			// this shouldn't be necessary
+			ratingsArray[i][1] == 0;
 		}
-		for(var x=0, xl=frCallsCriticRatings.length; x<xl; x++) {
-			if(!frCallsCriticRatings[x].statusText) {
-				waitingForStatus = true;
-				break;
-			}
-		}
-		if(!waitingForStatus) {
-			clearInterval(frPartialImportTimer);
-			// remove movies if user rating exists but no critic ratings were imported
-			// side effect:  one movie will have some but not all of its critics' ratings imported.  Therefore it won't be removed, and it will be inaccurate.  Fixing this would be difficult.
-			for(var i=1, il=ratingsArray.length; i<il; i++) {
-				if(!ratingsArray[i][1]) {
-					// this shouldn't be necessary
-					ratingsArray[i][1] == 0;
-				}
-				if(ratingsArray[i][1]>0) {
-					// user has rated
-					var criticCount = 0;
-					for(var j=2, jl=ratingsArray[i].length; j<jl; j++) {
-						if(ratingsArray[i][j]>0) {
-							criticCount++;
-						}
-					}
-					if(criticCount==0) {
-						// if no critic ratings, set user rating to 0
-						ratingsArray[i][1]=0;
-					}
+		if(ratingsArray[i][1]>0) {
+			// user has rated
+			var criticCount = 0;
+			for(var j=2, jl=ratingsArray[i].length; j<jl; j++) {
+				if(ratingsArray[i][j]>0) {
+					criticCount++;
 				}
 			}
-			// sort zero'ed user ratings to end
-			ratingsArray.sort(function(a, b) {
-				var aSort = a[1];
-				var bSort = b[1];
-				return bSort-aSort;
-			});
-			var zeroCount = 0;
-			for(var i=1, il=ratingsArray.length; i<il; i++) {
-				if(ratingsArray[i][1]==0) {
-					zeroCount++;
-				}
+			if(criticCount==0) {
+				// if no critic ratings, set user rating to 0
+				ratingsArray[i][1]=0;
 			}
-			ratingsArray.splice(ratingsArray.length-zeroCount,zeroCount);
-			save_to_storage();
 		}
-	},500);
+	}
+	// sort zero'ed user ratings to end
+	ratingsArray.sort(function(a, b) {
+		var aSort = a[1];
+		var bSort = b[1];
+		return bSort-aSort;
+	});
+	var zeroCount = 0;
+	for(var i=1, il=ratingsArray.length; i<il; i++) {
+		if(ratingsArray[i][1]==0) {
+			zeroCount++;
+		}
+	}
+	ratingsArray.splice(ratingsArray.length-zeroCount,zeroCount);
+	save_to_storage();
 }
 
 
