@@ -259,6 +259,7 @@ messagePort.onMessage.addListener(function(msg) {
 				var totalPages = find_total_pages();
 				show_update_status(totalPages);
 				ratingsArray_add_this_movie();
+				rating_widget_events_update(ratingsArray[pageFilmIndex][1]);
 				// each scrape call updates the ratingsArray & criticsArray
 				var scrapePath = $(elReviewsScrapeLink).attr('href');
 				if(scrapePath) {
@@ -274,7 +275,7 @@ messagePort.onMessage.addListener(function(msg) {
 					criticRatingsXhrs = [];
 					criticsArray_add_existing();
 					criticsArray_update();
-					rating_widget_events_match();
+					match_RT_rating_widget();
 					update_critics_widget();
 					update_tomatometer();
 					add_score_panel_events();
@@ -284,7 +285,6 @@ messagePort.onMessage.addListener(function(msg) {
 					$('#hrt_rating_widget UL').css('visibility','visible');
 					$('#hrt_updating').css('display','none');
 					clearInterval(updatingTimer);
-					partial_import_cleanup();
 					criticRatingsDeferreds = [];
 				});
 				// fail state unneeded, nothing could possibli go wrong
@@ -723,73 +723,72 @@ function add_rating_widget_events() {
 			return false;
 		});
 	}
-
-	// add new event to RT's native rating widget
-	// will execute whether real or simulated click
-	var rtWidget = $(starWidgetRT).eq(0);
-	$(rtWidget).click(function(event) {
-		// check class for how many stars were clicked and whether to save locally
-		var rtStars = $(rtWidget)[0].style.width;
-		var num = Math.round(parseInt(rtStars)/20);
-		var simulated = false;
-		var classList = $(this).attr('class').split(/\s+/);
-		$.each(classList, function(index, item) {
-			if(item.indexOf('simulated')>-1) {
-				simulated = true;
-			}
-		});
-		if(!simulated) {
-			// save and update
-			rating_widget_events_save(num);
-			rating_widget_events_update(num);
-			criticsArray_update();
-			update_critics_widget();
-			update_tomatometer();
-			save_to_storage();
-		}
-		$(this).removeClass('simulated');
-	});
 }
 
-function rating_widget_events_match() {
-	var num = ratingsArray[pageFilmIndex][1];
-	rating_widget_events_update(num);
-	// logged in to RT
-
+function match_RT_rating_widget() {
 	// RT doesn't pull in its user rating record
 	// until well after the page loads,
 	// so we have to listen for it
 	var observer = new MutationObserver(function(mutations, observer) {
 		if(ratingsArray[pageFilmIndex]) {
 			if($(starWidgetRT)[0] instanceof Node) {
-				var rtWidget = $(starWidgetRT);
-				var rtStars = $(rtWidget)[0].style.width;
-				var num = Math.round(parseInt(rtStars)/20);
-				if(num>0 && num != ratingsArray[pageFilmIndex][1]) {
-					// RT rating exists and doesn't match local rating
-					// override local
-					rating_widget_events_save(num);
-					rating_widget_events_update(num);
-					criticsArray_update();
-					update_critics_widget();
-					update_tomatometer();
-					save_to_storage();
-				} else {
-					if(ratingsArray[pageFilmIndex][1]>0) {
-						// RT rating doesn't exist but local rating does
-						// so update RT widget
-						simulate_rt_widget_click(num);
-					}
-				}
-				observer.disconnect();
+				var starWidgetTimer = setTimeout(function(){
+					// wait 250ms to let mutation finish loading
+					save_RT_ratings_click();
+					var rtWidget = $(starWidgetRT).eq(0);
+					$(rtWidget).click(function(event) {
+						// add new event to RT's native rating widget
+						save_RT_ratings_click();
+					});
+					observer.disconnect();
+				},250);
 			}
 		}
 	});
 	var observationTarget = $(ratingWidgetTarget)[0];
-	observer.observe(observationTarget, {
+	observer.observe(observationTarget,
+	{
 		childList: true,
 		subtree: true
 	});
+}
+
+function save_RT_ratings_click() {
+	var rtWidget = $(starWidgetRT).eq(0);
+	var rtStars = $(rtWidget)[0].style.width;
+	var ratingFromRT = Math.round(parseInt(rtStars)/20);
+	var ratingFromLocal = ratingsArray[pageFilmIndex][1];
+	// check if this function was called from
+	// clicking HRT rating widget (simulated)
+	var simulated = false;
+	var classList = $(rtWidget).attr('class').split(/\s+/);
+	$.each(classList, function(index, item) {
+		if(item.indexOf('simulated')>-1) {
+			simulated = true;
+		}
+	});
+	if(!simulated) {
+		if(ratingFromRT != ratingFromLocal) {
+			// ratings don't already match
+			if(ratingFromRT>0 && !simulated) {
+				// rating from RT exists and
+				// this mutation was not started
+				// by tapping the HRT widget
+				// so override local
+				rating_widget_events_save(ratingFromRT);
+				rating_widget_events_update(ratingFromRT);
+				criticsArray_update();
+				update_critics_widget();
+				update_tomatometer();
+				save_to_storage();
+			} else if(ratingFromLocal>0) {
+				// rating from local exists
+				// so update RT widget
+				simulate_rt_widget_click(num);
+			}
+		}
+	}
+	$(rtWidget).removeClass('simulated');
 }
 
 function rating_widget_events_update(star) {
@@ -1917,6 +1916,13 @@ function firstRun_importUserRatings() {
 		el = $(el).find(elUserRatingRow);
 		// get user's ratings
 		for(x=0, xl=$(el).length; x<xl; x++) {
+			// At some point RT changed its URL structure, and
+			// some user ratings contain links to these old URLs.
+			// These will return 404.  Appending '/reviews' returns
+			// a response that contains the movie title, but nothing
+			// else useful.  Theoretically, we could add code for
+			// to retry 404 titles by  '/search/?search='[title]
+			// then getting the updated URL, though it's not foolproof.
 			var filmPath = $(el).eq(x).find(elUserRatingFilmLink).attr('href');
 			if(!filmPath) { continue; }
 			if(filmPath.indexOf('/m/')<0) { continue; } // is a film
@@ -2075,24 +2081,25 @@ function partial_import_cleanup() {
 				}
 			}
 			if(criticCount==0) {
-				// if no critic ratings, set user rating to 0
-				ratingsArray[i][1]=0;
+				// if no critic ratings, mark this movie
+				ratingsArray[i][0][2] = -1;
 			}
 		}
 	}
-	// sort zero'ed user ratings to end
+	// sort marked user ratings to end
 	ratingsArray.sort(function(a, b) {
-		var aSort = a[1];
-		var bSort = b[1];
+		var aSort = a[0][2];
+		var bSort = b[0][2];
 		return bSort-aSort;
 	});
-	var zeroCount = 0;
+
+	var cleanupCount = 0;
 	for(var i=1, il=ratingsArray.length; i<il; i++) {
-		if(ratingsArray[i][1]==0) {
-			zeroCount++;
+		if(ratingsArray[i][0][2] == -1) {
+			cleanupCount++;
 		}
 	}
-	ratingsArray.splice(ratingsArray.length-zeroCount,zeroCount);
+	ratingsArray.splice(ratingsArray.length-cleanupCount,cleanupCount);
 	save_to_storage();
 }
 
