@@ -969,10 +969,13 @@ function show_about_modal() {
 		$('#hrt_modalClickZone').remove();
 		$('BODY').off('keyup');
 	});
+
 	$('BODY').keyup(function(event) {
-		$('#hrt_modal').remove();
-		$('#hrt_modalClickZone').remove();
-		$('BODY').off('keyup');
+		if(event.keyCode) {
+			$('#hrt_modal').remove();
+			$('#hrt_modalClickZone').remove();
+			$('BODY').off('keyup');
+		}
 	});
 
 	$('#hrt_erase').click(function(event) {
