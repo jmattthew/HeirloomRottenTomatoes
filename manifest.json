@@ -1,7 +1,7 @@
 {
 	"manifest_version": 2,
 	"name": "Heirloom Rotten Tomatoes",
-	"version": "3.0.8",
+	"version": "3.0.9",
   	"description": "Enhance Rotten Tomatoes! Find the critics who are most like you.",
 	"page_action": {
 		"default_icon": {
@@ -32,8 +32,10 @@
   	"content_scripts": [
 		{
 			"matches": [
-				"http://www.rottentomatoes.com/*",
-				"https://www.rottentomatoes.com/*" ],
+				"http://rottentomatoes.com/*",
+				"https://rottentomatoes.com/*",
+				"http://*.rottentomatoes.com/*",
+				"https://*.rottentomatoes.com/*" ],
 			"css": [
 				"styles.css"
 			],
