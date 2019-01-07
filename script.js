@@ -182,7 +182,8 @@ var userPrivacyAlert = '#headerUserSection .name a';
 var freshPick = '#header-certified-fresh-picks a';
 var loginLinkRT = '#header-top-bar-login';
 var ratingWidgetTarget = '#topSection';
-var starWidgetRT = '#rating_widget_desktop .rating-stars';
+var starWidgetRT = '#rating_widget_desktop .rating_stars';
+var starWidgetStarRT = 'data-rating-value';
 var poster = '#movie-image-section div';
 var elScorePanel = '#scorePanel';
 var reviewsPageCount = '.pageInfo';
@@ -784,7 +785,7 @@ function save_RT_ratings_click() {
 			} else if(ratingFromLocal>0) {
 				// rating from local exists
 				// so update RT widget
-				simulate_rt_widget_click(num);
+				simulate_rt_widget_click(ratingFromLocal);
 			}
 		}
 	}
@@ -811,24 +812,24 @@ function simulate_rt_widget_click(star) {
 	var rtWidget = $(starWidgetRT).eq(0);
 	// record that this is a simulated click
 	$(rtWidget).addClass('simulated');
-	// record new rating (used by local rating widget)
-	var str = (star*20).toString();
-	str += '%';
-	$(rtWidget).css('width','str');
+	var rtWidgetStar = rtWidget.find('[' + starWidgetStarRT + '="' + star + '"]');
 	// find rt widget position accounting for scroll
-	var clientX = rtWidget[0].getBoundingClientRect().left;
-	clientX += ((star*26)-8);
-	// simulate click on RT's star rating tool
-	var event = new MouseEvent('click', {
-		'view': window,
-		'bubbles': true,
-		'cancelable': true,
-    	'clientX': clientX,
-		'clientY': 263,
-		'button': 0,
-		'relatedTarget': null
-	});
-	rtWidget[0].dispatchEvent(event);
+	var clientX = rtWidgetStar[0];
+	if(typeof clientX != "undefined") {
+		clientX = rtWidgetStar[0].getBoundingClientRect().left + 2;
+		// clientX += ((star*26)-8);
+		// simulate click on RT's star rating tool
+		var event = new MouseEvent('click', {
+			'view': window,
+			'bubbles': true,
+			'cancelable': true,
+	    	'clientX': clientX,
+			'clientY': 2,
+			'button': 0,
+			'relatedTarget': null
+		});
+		rtWidgetStar[0].dispatchEvent(event);
+	}
 }
 
 function add_extras_events() {
