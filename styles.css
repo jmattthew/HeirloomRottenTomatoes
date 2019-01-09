@@ -641,14 +641,15 @@
 	overflow: hidden;
 }
 
-#hrt_rating_widget ul  {
+div#hrt_rating_widget ul {
 	visibility: hidden;
 	width: 176px;
 	margin-top: 6px;
-	padding: 0;
+	padding: 0 !important;
+	/* sadly the div# and !important are necessary to override RT's use of important in #score_panel */
 }
 
-#hrt_rating_widget li  {
+#hrt_rating_widget li {
 	display: inline;
 	list-style: none;
 }
@@ -695,7 +696,7 @@
 	background-position: left top;
 }
 
-#user_rating {
+#hrt_rating_widget #user_rating {
 	display: block;
 	width: 96px;
 	height: 16px;
@@ -704,11 +705,11 @@
 	background-size: 16px;
 }
 
-li a#star_a_0	  {
+#hrt_rating_widget li a#star_a_0	  {
 	background-position: 0px -48px;
 }
 
-li a#star_a_0:hover {
+#hrt_rating_widget li a#star_a_0:hover {
 	background-position: 0px -64px;
 }
 
