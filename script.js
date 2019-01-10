@@ -1351,8 +1351,11 @@ function do_scrape_calls(totalPages,path,index) {
 
 					// adding data to criticsArray
 					var shortPath = path.substring(path.indexOf('.com')+4,path.length);
-					if(shortPath == pageFilmPath) {
+					var shortPathAlt = shortPath.replace('-','_');
+					if(shortPath == pageFilmPath || shortPathAlt == pageFilmPath) {
 						// after import, only add to critic widget each critic's rating of the current movie page
+						// I forget why/how the critic's rating could be of a different movie
+						// shortPathAlt needed because sometimes a movie page and its reviews pages have a slightly different URL
 						var num = criticsArray.length;
 						criticsArray[num] = [];
 						criticsArray[num][0] = criticName;
@@ -1361,6 +1364,8 @@ function do_scrape_calls(totalPages,path,index) {
 						criticsArray[num][3] = criticRating;
 						criticsArray[num][4] = reviewPath;
 						criticsArray[num][5] = reviewBlurb;
+					} else {
+						console.log('\n\n\n\nmovie page URL was: ' + shortPath + 'but reviews page URL was: ' + pageFilmPath);
 					}
 
 					// search for this critic in the ratingsArray
