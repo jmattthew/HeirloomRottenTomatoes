@@ -15,6 +15,8 @@ var firstRun = '';
 var dataVersion = 6;
 var appVersion = chrome.runtime.getManifest().version;
 var previousVersion = appVersion;
+console.log('loaded ' + previousVersion);
+var messagePort = chrome.runtime.connect({name: 'readiness'});
 
 
 
@@ -30,29 +32,6 @@ var previousVersion = appVersion;
 //        ACTION       //
 //                     //
 /////////////////////////
-
-// When the extension is installed or upgraded ...
-chrome.runtime.onInstalled.addListener(function(details) {
-	if(details.reason == "update"){
-		// show the update message
-		previousVersion = details.previousVersion;
-	}
-	chrome.declarativeContent.onPageChanged.removeRules(undefined, function() {
-		chrome.declarativeContent.onPageChanged.addRules([
-			{
-				conditions: [
-					new chrome.declarativeContent.PageStateMatcher({
-						pageUrl: { urlContains: 'rottentomatoes.com' },
-					})
-				],
-				actions: [
-					new chrome.declarativeContent.ShowPageAction()
-				]
-			}
-		]);
-	});
-});
-
 
 // insert Google Analytics
 (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
@@ -101,9 +80,30 @@ storage.get(['ratings','firstRun'], function(items) {
 	dataReady = true;
 });
 
+// onInstalled
+chrome.runtime.onInstalled.addListener(function(details) {
+	if(details.reason == 'install' || details.reason == 'update'){
+		// show the update message
+		previousVersion = details.previousVersion;
+		console.log('updated ' + previousVersion);
+	}
+	chrome.declarativeContent.onPageChanged.removeRules(undefined, function() {
+		chrome.declarativeContent.onPageChanged.addRules([
+			{
+				conditions: [
+					new chrome.declarativeContent.PageStateMatcher({
+						pageUrl: { urlContains: 'rottentomatoes.com' },
+					})
+				],
+				actions: [
+					new chrome.declarativeContent.ShowPageAction()
+				]
+			}
+		]);
+	});
+});
 
-// open a message port
-var messagePort = chrome.runtime.connect({name: 'readiness'});
+// onConnect
 chrome.runtime.onConnect.addListener(function(messagePort) {
 	console.assert(messagePort.name == 'readiness');
 	messagePort.onMessage.addListener(function(msg) {
@@ -190,6 +190,11 @@ chrome.runtime.onConnect.addListener(function(messagePort) {
 			  eventLabel: msg.noteworthy[1]
 			});
 			console.log('noteworthy film data sent to gA: ' + msg.noteworthy);
+		}
+		if(msg.installMessageSeen) {
+			previousVersion = appVersion;
+			console.log('update message seen and dismissed');
+			console.log(previousVersion);
 		}
 	});
 });

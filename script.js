@@ -185,7 +185,7 @@ var ratingWidgetTarget = '#topSection';
 var starWidgetRT = '#rating_widget_desktop .rating_stars';
 var starWidgetStarRT = 'data-rating-value';
 var poster = '#movie-image-section div';
-var elScorePanel = '#scorePanel';
+var elScorePanel = '.score-panel-wrap';
 var reviewsPageCount = '.pageInfo';
 var criticsCount = '#criticHeaders';
 var elReviewsScrapeLink = '#criticHeaders a:nth-child(1)';
@@ -208,7 +208,7 @@ var elAudienceAverage = '.audience-info div:nth-child(1) span';
 var elConsensus = '.critic_consensus';
 var elConsensusJunk = '.superPageFontColor';
 var elSynopsis = '#movieSynopsis';
-var elPageFilmName = '#movie-title';
+var elPageFilmName = '.mop-ratings-wrap__title--top';
 
 
 
@@ -233,12 +233,22 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 });
 
 messagePort.postMessage({status: 'sendFirstRun'});
+
 messagePort.onMessage.addListener(function(msg) {
 	if(msg.firstRun) {
 		firstRun = msg.firstRun[0];
+		var type = '';
 		var previousVersion = msg.firstRun[1];
-		if(previousVersion != appVersion) {
-			appUdate_showModal(previousVersion);
+
+		if(previousVersion != appVersion && $(elPageFilmName).length>0) {
+			if(parseInt(previousVersion.substr(0,1)) < 3) {
+				type = 'v3'
+				appUpdate_showModal(type);
+			}
+			if(parseInt(previousVersion.substr(2,1)) == 0 && parseInt(previousVersion.substr(4,previousVersion.length)) < 13) {
+				type = 'v3.0.13'
+				appUpdate_showModal(type);
+			}
 		}
 		messagePort.postMessage({status: 'sendRatingsArray'});
 	}
@@ -1660,14 +1670,21 @@ function firstRun_getRatings() {
 	return hasRatings;
 }
 
-function appUdate_showModal(previousVersion) {
-	if(previousVersion.substring(0,1) != '3') {
-		// message for upgrade to version 3.x
-		$('BODY').append($('<div>',{ id: 'hrt_modalClickZone' }));
-		$('BODY').append($('<div>',{ id: 'hrt_modal', class: 'app_update_modal_v3' }));
-		$('#hrt_modal').append($('<div>', { id: 'hrt_modalInner' }));
+function appUpdate_showModal(type) {
+	var html = '';
+	$('BODY').append($('<div>',{ id: 'hrt_modalClickZone' }));
+	$('BODY').append($('<div>',{ id: 'hrt_modal', class: 'app_update_modal_v3' }));
+	$('#hrt_modal').append($('<div>', { id: 'hrt_modalInner' }));
+	if(type == 'v3.0.13') {
+		$('#hrt_modalInner').append($('<strong>', { text: 'Heirloom Rotten Tomatoes is under construction 😱', style: 'text-align:center; padding-bottom:10px;' }));
+		html += '<strong>My apologies that the extension is broken!</strong>';
+		html += '<span>Rotten Tomatoes has made some big changes to the layout of their movie pages and Tomatometer.  You can read about the on their <a href="http://editorial.rottentomatoes.com/article/making-some-changes/" target="_blank">blog</a>.  As a consequence, I\'ll need to make some big changes to the Heirloom Rotten Tomatoes extension to make it work again.</span></span>';
+		html += '<strong>Thank you for you continued support</strong>';
+		html += '<span>This extension is a labor of love, and I am grateful for all of your bug reports and messages of encouragement.  I hope to get things running again soon, but that may take a couple of months because of my other commitments.  Until then, if you keep the extension installed, the Rotten Tomatoes website will continue to work normally.  I apologize for the inconvenience!</span>';
+		html += '<span>Once you tap "Got it" below, this message will disappear forever until I have more news to share.  If you have any questions, feel free to DM me on Twitter: <a href="https://twitter.com/messages/compose?recipient_id=3084491" target="_blank">@mattthew</a></span>';
+	}
+	if(type == 'v3') {
 		$('#hrt_modalInner').append($('<strong>', { text: 'You\'ve upgraded to version 3 of Heirloom Rotten Tomatoes!', style: 'text-align:center; padding-bottom:10px;' }));
-		var html = '';
 		html += '<strong>What\'s new:</strong>';
 		html += '<ul>';
 			html += '<li>New and improved layout & design.</li>';
@@ -1680,17 +1697,16 @@ function appUdate_showModal(previousVersion) {
 		html += '<div class="hrt_icon_caption"><b>Dividing:&nbsp;&nbsp;</b>A movie that many critics this is good but just as many think is bad.  Which side of the fence are you on?</div></span>'
 		html += '<span class="icon_info"><div class="hrt_icon"><div class="hrt_amazing"></div></div>';
 		html += '<div class="hrt_icon_caption"><b>Amazing:&nbsp;&nbsp;</b>A movie that an exceptionally high percentage of critics think is great. A higher standard than "certified".</div></span>'
-		$('#hrt_modalInner').append(html);
-		$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Got it!', id: 'firstRun_button_close', class: 'button' }));
-
-		// binding events
-		$('#firstRun_button_close').click(function(event) {
-			$('#hrt_modal').remove();
-			$('#hrt_modalClickZone').remove();
-			return false;
-		});
-
 	}
+	$('#hrt_modalInner').append(html);
+	$('#hrt_modalInner').append($('<a>', { href: '#', text: 'Got it!', id: 'firstRun_button_close', class: 'button' }));
+	// binding events
+	$('#firstRun_button_close').click(function(event) {
+		messagePort.postMessage({installMessageSeen: true});
+		$('#hrt_modal').remove();
+		$('#hrt_modalClickZone').remove();
+		return false;
+	});
 }
 
 function firstRun_showModal(modalType) {
